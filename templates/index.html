@@ -8,33 +8,44 @@
 </head>
 <body>
   <main class="shell">
-    <section class="panel hero">
-      <p class="eyebrow">Third-party Public Snapshot</p>
-      <h1>Mercari Reputation Snapshot</h1>
-      <p class="lead">輸入 Mercari 公開賣家頁，建立帶有證據雜湊與 Ed25519 簽章的公開信譽快照。</p>
+    <section class="panel hero home-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Third-party Public Snapshot</p>
+        <h1>Mercari Reputation Snapshot</h1>
+        <p class="lead">直接貼上 Mercari 商品連結，系統會自動找到賣家，先檢查是否已有可用快照；如果沒有，就建立新的快照再帶你前往 proof 頁面。</p>
+      </div>
+
       <form id="capture-form" class="capture-form">
-        <label for="profile_url">Mercari 個人頁網址</label>
-        <input
-          id="profile_url"
-          name="profile_url"
-          type="url"
-          placeholder="https://jp.mercari.com/user/profile/123456789"
-          required
-        >
-        <label for="expires_in_days">有效天數</label>
-        <input id="expires_in_days" name="expires_in_days" type="number" min="1" max="365" value="30">
-        <button type="submit">建立 Snapshot</button>
+        <label for="query_url">貼上 Mercari 商品連結</label>
+        <p class="input-note">建議直接貼商品頁網址，例如 `https://jp.mercari.com/item/m74005892833`。目前也接受賣家頁連結。</p>
+
+        <div class="capture-form-row">
+          <input
+            id="query_url"
+            name="query_url"
+            type="url"
+            placeholder="https://jp.mercari.com/item/m74005892833"
+            required
+          >
+          <button type="submit">查詢賣家快照</button>
+        </div>
+
+        <p class="form-hint">查詢流程：解析商品頁 → 找出賣家 → 檢查既有快照 → 必要時自動建立新快照。</p>
       </form>
     </section>
 
     <section class="panel result-panel">
       <div class="result-head">
-        <h2>執行結果</h2>
-        <span id="status-badge" class="status-badge idle">等待中</span>
+        <div>
+          <p class="eyebrow">Lookup Status</p>
+          <h2>查詢進度</h2>
+        </div>
+        <span id="status-badge" class="status-badge idle">待查詢</span>
       </div>
-      <p id="result-message" class="result-message">送出後會在這裡顯示 capture 與 proof 結果。</p>
+
+      <p id="result-message" class="result-message" aria-live="polite">貼上商品連結後，系統會自動幫你找到賣家快照。</p>
       <div id="result-actions" class="result-actions"></div>
-      <pre id="result-json" class="result-json"></pre>
+      <pre id="result-json" class="result-json" hidden></pre>
     </section>
   </main>
   <script src="{{ url_for('static', filename='app.js') }}"></script>

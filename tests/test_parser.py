@@ -47,20 +47,76 @@ def test_parser_cases(case: dict) -> None:
     verify_result = verify_proof(proof_bundle["proof_payload"], proof_bundle["signature"])
     assert verify_result["valid"] is True
 
-    expected_status = "full" if all(expect[f"has_{field}"] for field in ("display_name", "total_reviews", "listing_count", "followers_count", "following_count")) else "partial"
+    expected_status = "full" if all(
+        expect[f"has_{field}"] for field in ("display_name", "total_reviews", "listing_count", "followers_count", "following_count")
+    ) else "partial"
     assert parsed["completeness_status"] == expected_status
 
 
-def test_parser_uses_reviews_page_for_review_breakdown() -> None:
-    raw_html = _fixture_text("fixture_review_bridge_profile", "html")
-    visible_text = _fixture_text("fixture_review_bridge_profile", "txt")
-    review_visible_text = _fixture_text("fixture_review_bridge_reviews", "txt")
+def test_parser_prefers_profile_total_reviews_over_breakdown_sum() -> None:
+    raw_html = """
+    <section data-testid="profile-info">
+      <div data-testid="mer-avatar">
+        <img src="https://static.mercdn.net/thumb/members/webp/492792377.jpg" alt="山本商店">
+      </div>
+      <div data-testid="mer-profile-heading">
+        <h1>山本商店</h1>
+      </div>
+      <span data-testid="thumbnail-item-name">ゲッコウガsar</span>
+    </section>
+    """
+    visible_text = "\n".join(
+        [
+            "山本商店",
+            "961",
+            "本人確認済",
+            "759 出品数",
+            "39 フォロワー",
+            "0 フォロー中",
+        ]
+    )
+    review_visible_text = "\n".join(["山本商店", "良い (96)", "残念だった (4)"])
 
     parsed = parse_profile(raw_html, visible_text, review_visible_text=review_visible_text)
 
     assert parsed["display_name"] == "山本商店"
     assert parsed["positive_reviews"] == 96
     assert parsed["negative_reviews"] == 4
-    assert parsed["total_reviews"] == 100
-    assert parsed["sample_items"][:3] == ["ゲッコウガsar", "ゼクロム ex ポケモンカード 230HP", "ナンジャモ SAR"]
+    assert parsed["total_reviews"] == 961
+    assert parsed["sample_items"] == ["ゲッコウガsar"]
     assert parsed["extractor_strategy"] == "dom_text_regex+review_page"
+
+
+def test_parser_uses_item_context_for_total_reviews() -> None:
+    raw_html = """
+    <section data-testid="profile-info">
+      <div data-testid="mer-avatar">
+        <img src="https://static.mercdn.net/thumb/members/webp/492792377.jpg" alt="山本商店">
+      </div>
+      <div data-testid="mer-profile-heading">
+        <h1>山本商店</h1>
+      </div>
+    </section>
+    """
+    visible_text = "\n".join(["山本商店", "本人確認済", "759 出品数", "39 フォロワー", "0 フォロー中"])
+    review_visible_text = "\n".join(["良い (96)", "残念だった (4)"])
+    item_raw_html = """
+    <a href="/user/profile/492792377" data-location="item_details:seller_info"
+       aria-label="山本商店, 961件のレビュー, 5段階評価中4.5, 本人確認済">
+      山本商店 961
+    </a>
+    """
+
+    parsed = parse_profile(
+        raw_html,
+        visible_text,
+        review_visible_text=review_visible_text,
+        item_raw_html=item_raw_html,
+        item_total_reviews=961,
+    )
+
+    assert parsed["display_name"] == "山本商店"
+    assert parsed["positive_reviews"] == 96
+    assert parsed["negative_reviews"] == 4
+    assert parsed["total_reviews"] == 961
+    assert parsed["extractor_strategy"] == "dom_text_regex+review_page+item_page"

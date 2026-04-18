@@ -4,10 +4,11 @@ from typing import Any
 
 from flask import Flask, jsonify, render_template, request
 
-from services.capture_service import capture_profile
+from services.capture_service import capture_profile, resolve_profile_reference
 from services.parser_mercari import REQUIRED_FIELDS, parse_profile
 from services.proof_service import build_proof
 from services.storage_service import (
+    find_latest_reusable_proof_by_source_url,
     get_proof,
     get_proof_document,
     insert_capture,
@@ -19,7 +20,7 @@ from services.verify_service import verify_proof
 from utils.db_utils import ensure_runtime_directories, get_settings, init_db
 from utils.json_utils import pretty_json
 from utils.profile_view_utils import build_proof_view
-from utils.url_utils import is_valid_mercari_profile_url, normalize_mercari_url
+from utils.url_utils import MERCARI_URL_ERROR, is_valid_mercari_url
 
 
 def create_app(test_config: dict[str, Any] | None = None) -> Flask:
@@ -44,24 +45,42 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     @app.post("/api/captures")
     def create_capture() -> tuple[Any, int] | Any:
         payload = request.get_json(silent=True) or {}
-        profile_url = payload.get("profile_url", "")
-        expires_in_days = int(payload.get("expires_in_days", app.config["DEFAULT_EXPIRES_DAYS"]))
+        query_url = _extract_query_url(payload)
+        expires_in_days = _parse_expires_in_days(payload.get("expires_in_days"), app.config["DEFAULT_EXPIRES_DAYS"])
 
-        if not is_valid_mercari_profile_url(profile_url):
-            return jsonify({"error": "Only https://jp.mercari.com/user/profile/... URLs are supported."}), 400
-
-        normalized_url = normalize_mercari_url(profile_url)
+        if not is_valid_mercari_url(query_url):
+            return jsonify({"error": MERCARI_URL_ERROR}), 400
 
         try:
-            capture_data = capture_profile(normalized_url)
+            resolution = resolve_profile_reference(query_url)
+            reusable_proof = find_latest_reusable_proof_by_source_url(resolution["profile_url"])
+            if reusable_proof is not None:
+                return jsonify(
+                    {
+                        "capture_id": reusable_proof["capture_id"],
+                        "proof_id": reusable_proof["proof_id"],
+                        "proof_url": f"/p/{reusable_proof['proof_id']}",
+                        "profile_url": resolution["profile_url"],
+                        "display_name": reusable_proof.get("display_name") or resolution.get("display_name"),
+                        "query_kind": resolution["query_kind"],
+                        "reused": True,
+                    }
+                )
+
+            capture_data = capture_profile(resolution["profile_url"])
             parsed_data = parse_profile(
                 capture_data["raw_html"],
                 capture_data["visible_text"],
                 review_raw_html=capture_data.get("review_raw_html"),
                 review_visible_text=capture_data.get("review_visible_text"),
+                item_raw_html=resolution.get("item_raw_html"),
+                item_visible_text=resolution.get("item_visible_text"),
+                item_total_reviews=resolution.get("seller_total_reviews"),
             )
+            if parsed_data.get("display_name") is None and resolution.get("display_name"):
+                parsed_data["display_name"] = resolution["display_name"]
 
-            capture_record = _build_capture_record(normalized_url, capture_data, parsed_data)
+            capture_record = _build_capture_record(resolution["profile_url"], capture_data, parsed_data)
             insert_capture(capture_record)
 
             missing_fields = [field for field in REQUIRED_FIELDS if parsed_data.get(field) is None]
@@ -73,7 +92,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 missing_fields,
             )
 
-            proof_bundle = build_proof(normalized_url, capture_data, parsed_data, expires_in_days=expires_in_days)
+            proof_bundle = build_proof(resolution["profile_url"], capture_data, parsed_data, expires_in_days=expires_in_days)
             insert_proof(
                 {
                     "id": proof_bundle["proof_id"],
@@ -87,6 +106,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                     "published_at": proof_bundle["published_at"],
                 }
             )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
@@ -95,6 +116,10 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "capture_id": capture_data["capture_id"],
                 "proof_id": proof_bundle["proof_id"],
                 "proof_url": f"/p/{proof_bundle['proof_id']}",
+                "profile_url": resolution["profile_url"],
+                "display_name": parsed_data.get("display_name"),
+                "query_kind": resolution["query_kind"],
+                "reused": False,
             }
         )
 
@@ -142,6 +167,22 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         )
 
     return app
+
+
+def _extract_query_url(payload: dict[str, Any]) -> str:
+    return str(
+        payload.get("query_url")
+        or payload.get("item_url")
+        or payload.get("profile_url")
+        or ""
+    ).strip()
+
+
+def _parse_expires_in_days(raw_value: Any, default_value: int) -> int:
+    try:
+        return int(raw_value or default_value)
+    except (TypeError, ValueError):
+        return int(default_value)
 
 
 def _build_capture_record(source_url: str, capture_data: dict[str, Any], parsed_data: dict[str, Any]) -> dict[str, Any]:

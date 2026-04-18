@@ -9,7 +9,7 @@ from utils.db_utils import now_jst_iso
 from utils.hash_utils import sha256_text
 from utils.json_utils import canonical_json
 from utils.score_utils import calculate_score
-from utils.url_utils import normalize_mercari_url
+from utils.url_utils import normalize_mercari_profile_url
 
 
 PROOF_VERSION = "v0.1"
@@ -23,7 +23,7 @@ def build_proof(
     expires_in_days: int = 30,
 ) -> dict[str, Any]:
     proof_id = f"proof_{uuid.uuid4().hex[:12]}"
-    normalized_url = normalize_mercari_url(source_url)
+    normalized_url = normalize_mercari_profile_url(source_url)
     captured_at = capture_data.get("captured_at") or now_jst_iso()
     expires_at = _calculate_expiry(captured_at, expires_in_days)
     score = calculate_score(

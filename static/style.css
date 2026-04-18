@@ -85,10 +85,39 @@ body {
   line-height: 1.7;
 }
 
+.home-hero {
+  display: grid;
+  gap: 22px;
+}
+
+.hero-copy {
+  display: grid;
+  gap: 12px;
+}
+
 .capture-form {
   display: grid;
   gap: 12px;
   margin-top: 22px;
+}
+
+.capture-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.input-note,
+.form-hint {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.input-note code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.92em;
 }
 
 .capture-form label,
@@ -444,6 +473,10 @@ body {
   word-break: break-word;
 }
 
+.result-json[hidden] {
+  display: none;
+}
+
 .hash {
   word-break: break-all;
   font-family: Consolas, "Courier New", monospace;
@@ -486,6 +519,10 @@ body {
   .trust-facts,
   .distribution-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .capture-form-row {
+    grid-template-columns: 1fr;
   }
 }
 

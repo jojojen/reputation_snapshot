@@ -45,6 +45,8 @@ def test_live_capture_smoke(profile_url: str) -> None:
     if profile_url.endswith("/492792377"):
         assert parsed["positive_reviews"] is not None
         assert parsed["negative_reviews"] is not None
+        assert parsed["total_reviews"] is not None
+        assert parsed["total_reviews"] >= parsed["positive_reviews"] + parsed["negative_reviews"]
 
     proof_bundle = build_proof(profile_url, capture, parsed)
     verify_result = verify_proof(proof_bundle["proof_payload"], proof_bundle["signature"])

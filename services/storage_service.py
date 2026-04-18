@@ -141,6 +141,32 @@ def get_proof(proof_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def find_latest_reusable_proof_by_source_url(source_url: str) -> dict[str, Any] | None:
+    with get_db_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                p.id AS proof_id,
+                p.capture_id AS capture_id,
+                p.status AS proof_status,
+                p.expires_at AS expires_at,
+                p.published_at AS published_at,
+                c.source_url AS source_url,
+                c.display_name AS display_name
+            FROM proofs AS p
+            INNER JOIN captures AS c ON c.id = p.capture_id
+            WHERE c.source_url = ?
+              AND p.revoked_at IS NULL
+              AND p.status IN ('active', 'partial')
+              AND p.expires_at > ?
+            ORDER BY p.published_at DESC
+            LIMIT 1
+            """,
+            (source_url, now_jst_iso()),
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def get_proof_document(proof_id: str) -> dict[str, Any] | None:
     row = get_proof(proof_id)
     if row is None:
