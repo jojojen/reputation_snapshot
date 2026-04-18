@@ -1,0 +1,206 @@
+from __future__ import annotations
+
+from typing import Any
+
+from flask import Flask, jsonify, render_template, request
+
+from services.capture_service import capture_profile
+from services.parser_mercari import REQUIRED_FIELDS, parse_profile
+from services.proof_service import build_proof
+from services.storage_service import (
+    get_proof,
+    get_proof_document,
+    insert_capture,
+    insert_parser_run,
+    insert_proof,
+    revoke_proof,
+)
+from services.verify_service import verify_proof
+from utils.db_utils import ensure_runtime_directories, get_settings, init_db
+from utils.json_utils import pretty_json
+from utils.profile_view_utils import build_proof_view
+from utils.url_utils import is_valid_mercari_profile_url, normalize_mercari_url
+
+
+def create_app(test_config: dict[str, Any] | None = None) -> Flask:
+    settings = get_settings()
+    app = Flask(__name__)
+    app.config.update(
+        APP_HOST=settings.app_host,
+        APP_PORT=settings.app_port,
+        DEFAULT_EXPIRES_DAYS=settings.default_expires_days,
+        TESTING=False,
+    )
+    if test_config:
+        app.config.update(test_config)
+
+    ensure_runtime_directories()
+    init_db()
+
+    @app.get("/")
+    def index() -> str:
+        return render_template("index.html")
+
+    @app.post("/api/captures")
+    def create_capture() -> tuple[Any, int] | Any:
+        payload = request.get_json(silent=True) or {}
+        profile_url = payload.get("profile_url", "")
+        expires_in_days = int(payload.get("expires_in_days", app.config["DEFAULT_EXPIRES_DAYS"]))
+
+        if not is_valid_mercari_profile_url(profile_url):
+            return jsonify({"error": "Only https://jp.mercari.com/user/profile/... URLs are supported."}), 400
+
+        normalized_url = normalize_mercari_url(profile_url)
+
+        try:
+            capture_data = capture_profile(normalized_url)
+            parsed_data = parse_profile(
+                capture_data["raw_html"],
+                capture_data["visible_text"],
+                review_raw_html=capture_data.get("review_raw_html"),
+                review_visible_text=capture_data.get("review_visible_text"),
+            )
+
+            capture_record = _build_capture_record(normalized_url, capture_data, parsed_data)
+            insert_capture(capture_record)
+
+            missing_fields = [field for field in REQUIRED_FIELDS if parsed_data.get(field) is None]
+            insert_parser_run(
+                capture_data["capture_id"],
+                parsed_data["parser_version"],
+                parsed_data["extractor_strategy"],
+                not missing_fields,
+                missing_fields,
+            )
+
+            proof_bundle = build_proof(normalized_url, capture_data, parsed_data, expires_in_days=expires_in_days)
+            insert_proof(
+                {
+                    "id": proof_bundle["proof_id"],
+                    "capture_id": capture_data["capture_id"],
+                    "proof_payload_json": pretty_json(proof_bundle["proof_payload"]),
+                    "proof_sha256": proof_bundle["proof_sha256"],
+                    "signature": proof_bundle["signature"],
+                    "kid": proof_bundle["kid"],
+                    "status": proof_bundle["status"],
+                    "expires_at": proof_bundle["expires_at"],
+                    "published_at": proof_bundle["published_at"],
+                }
+            )
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+        return jsonify(
+            {
+                "capture_id": capture_data["capture_id"],
+                "proof_id": proof_bundle["proof_id"],
+                "proof_url": f"/p/{proof_bundle['proof_id']}",
+            }
+        )
+
+    @app.get("/api/proofs/<proof_id>")
+    def get_proof_json(proof_id: str) -> tuple[Any, int] | Any:
+        document = get_proof_document(proof_id)
+        if document is None:
+            return jsonify({"error": "Proof not found."}), 404
+        return jsonify(document)
+
+    @app.post("/api/verify")
+    def verify() -> Any:
+        payload = request.get_json(silent=True) or {}
+        proof_input = payload.get("proof")
+        signature = payload.get("signature")
+        proof_payload, resolved_signature = _normalize_verify_input(proof_input, signature)
+        result = verify_proof(proof_payload, resolved_signature)
+        return jsonify(result)
+
+    @app.post("/api/proofs/<proof_id>/revoke")
+    def revoke(proof_id: str) -> tuple[Any, int] | Any:
+        if get_proof(proof_id) is None:
+            return jsonify({"error": "Proof not found."}), 404
+
+        payload = request.get_json(silent=True) or {}
+        reason = payload.get("reason", "revoked_by_operator")
+        revoke_proof(proof_id, reason)
+        return jsonify({"proof_id": proof_id, "status": "revoked", "reason": reason})
+
+    @app.get("/p/<proof_id>")
+    def proof_page(proof_id: str) -> tuple[str, int] | str:
+        document = get_proof_document(proof_id)
+        if document is None:
+            return render_template("partial.html", proof=None, missing_fields=["proof_not_found"]), 404
+
+        missing_fields = _missing_required_fields(document)
+        template_name = "partial.html" if document.get("status") == "partial" else "proof.html"
+        proof_view = build_proof_view(document)
+        return render_template(
+            template_name,
+            proof=document,
+            proof_view=proof_view,
+            missing_fields=missing_fields,
+            proof_json=pretty_json(document),
+        )
+
+    return app
+
+
+def _build_capture_record(source_url: str, capture_data: dict[str, Any], parsed_data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": capture_data["capture_id"],
+        "source_url": source_url,
+        "source_platform": "mercari_jp",
+        "display_name": parsed_data.get("display_name"),
+        "avatar_url": parsed_data.get("avatar_url"),
+        "verified_badge": parsed_data.get("verified_badge"),
+        "total_reviews": parsed_data.get("total_reviews"),
+        "positive_reviews": parsed_data.get("positive_reviews"),
+        "negative_reviews": parsed_data.get("negative_reviews"),
+        "listing_count": parsed_data.get("listing_count"),
+        "followers_count": parsed_data.get("followers_count"),
+        "following_count": parsed_data.get("following_count"),
+        "bio_excerpt": parsed_data.get("bio_excerpt"),
+        "sample_items": parsed_data.get("sample_items", []),
+        "raw_html_path": capture_data["raw_html_path"],
+        "raw_html_sha256": capture_data["raw_html_sha256"],
+        "visible_text_path": capture_data["visible_text_path"],
+        "visible_text_sha256": capture_data["visible_text_sha256"],
+        "screenshot_path": capture_data["screenshot_path"],
+        "screenshot_sha256": capture_data["screenshot_sha256"],
+        "parser_version": parsed_data["parser_version"],
+        "extractor_strategy": parsed_data["extractor_strategy"],
+        "llm_repair_applied": parsed_data["llm_repair_applied"],
+        "completeness_status": parsed_data["completeness_status"],
+        "captured_at": capture_data["captured_at"],
+    }
+
+
+def _normalize_verify_input(proof_input: Any, signature: Any) -> tuple[dict[str, Any], str]:
+    proof = dict(proof_input or {})
+    resolved_signature = signature or proof.pop("signature", None)
+    proof.pop("kid", None)
+    proof.pop("proof_sha256", None)
+    proof.pop("revoked_at", None)
+    proof.pop("revocation_reason", None)
+    if not resolved_signature:
+        resolved_signature = ""
+    return proof, str(resolved_signature)
+
+
+def _missing_required_fields(document: dict[str, Any]) -> list[str]:
+    subject = document.get("subject", {})
+    metrics = document.get("metrics", {})
+    values = {
+        "display_name": subject.get("display_name"),
+        "total_reviews": metrics.get("total_reviews"),
+        "listing_count": metrics.get("listing_count"),
+        "followers_count": metrics.get("followers_count"),
+        "following_count": metrics.get("following_count"),
+    }
+    return [field for field, value in values.items() if value is None]
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    app.run(host=app.config["APP_HOST"], port=app.config["APP_PORT"], debug=False)

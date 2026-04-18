@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ proof.subject.display_name or 'Mercari Snapshot' }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="proof-body">
+  <main class="shell proof-shell">
+    <section class="proof-hero">
+      <article class="panel identity-card">
+        <div class="identity-top">
+          <div class="pill-row">
+            <span class="platform-pill">{{ proof_view.platform_label }}</span>
+            <span class="status-pill {{ proof_view.status_tone }}">{{ proof_view.status_label }}</span>
+          </div>
+          <a class="source-link" href="{{ proof.source_url }}" target="_blank" rel="noreferrer">Open source profile</a>
+        </div>
+
+        <div class="identity-body">
+          <div class="avatar-shell">
+            {% if proof.subject.avatar_url %}
+            <img src="{{ proof.subject.avatar_url }}" alt="{{ proof.subject.display_name or 'seller avatar' }}" class="avatar-image">
+            {% else %}
+            <span class="avatar-fallback">{{ proof_view.seller_initial }}</span>
+            {% endif %}
+          </div>
+
+          <div class="identity-copy">
+            <p class="eyebrow">Public Reputation Snapshot</p>
+            <h1>{{ proof.subject.display_name or 'Unknown Seller' }}</h1>
+            <p class="lead">
+              {% if proof.signals.bio_excerpt %}
+              {{ proof.signals.bio_excerpt }}
+              {% else %}
+              No seller bio was captured from the public page.
+              {% endif %}
+            </p>
+
+            <div class="chip-list">
+              {% for category in proof_view.primary_categories %}
+              <span class="chip">{{ category }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel trust-card">
+        <div class="trust-card-head">
+          <div>
+            <p class="eyebrow">Reputation Overview</p>
+            <h2>{{ proof.score.value }} / 100</h2>
+            <p class="muted">{{ proof_view.score_headline }}</p>
+          </div>
+          <div class="grade-badge grade-{{ proof.score.grade }}">{{ proof.score.grade }}</div>
+        </div>
+
+        <div class="review-summary">
+          <div class="review-summary-line">
+            <span>Total reviews</span>
+            <strong>{{ proof.metrics.total_reviews if proof.metrics.total_reviews is not none else 'N/A' }}</strong>
+          </div>
+
+          {% if proof_view.review_breakdown_available %}
+          <div class="distribution-track">
+            <span class="distribution-positive" style="width: {{ proof_view.positive_ratio or 0 }}%"></span>
+            <span class="distribution-negative" style="width: {{ proof_view.negative_ratio or 0 }}%"></span>
+          </div>
+          <div class="distribution-meta">
+            <span>Positive {{ proof.metrics.positive_reviews if proof.metrics.positive_reviews is not none else 'N/A' }}</span>
+            <span>Negative {{ proof.metrics.negative_reviews if proof.metrics.negative_reviews is not none else 'N/A' }}</span>
+          </div>
+          {% else %}
+          <p class="muted">Positive / negative review counts were not exposed on the captured public page.</p>
+          {% endif %}
+        </div>
+
+        <div class="trust-facts">
+          <article>
+            <span>Listings</span>
+            <strong>{{ proof.metrics.listing_count if proof.metrics.listing_count is not none else 'N/A' }}</strong>
+          </article>
+          <article>
+            <span>Followers</span>
+            <strong>{{ proof.metrics.followers_count if proof.metrics.followers_count is not none else 'N/A' }}</strong>
+          </article>
+          <article>
+            <span>Following</span>
+            <strong>{{ proof.metrics.following_count if proof.metrics.following_count is not none else 'N/A' }}</strong>
+          </article>
+        </div>
+
+        <p class="trust-note">{{ proof_view.status_description }}</p>
+      </article>
+    </section>
+
+    <section class="metric-grid">
+      <article class="panel metric-card">
+        <span>Platform</span>
+        <strong>{{ proof_view.platform_label }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Total Reviews</span>
+        <strong>{{ proof.metrics.total_reviews if proof.metrics.total_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Positive</span>
+        <strong>{{ proof.metrics.positive_reviews if proof.metrics.positive_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Negative</span>
+        <strong>{{ proof.metrics.negative_reviews if proof.metrics.negative_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Listings</span>
+        <strong>{{ proof.metrics.listing_count if proof.metrics.listing_count is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Followers</span>
+        <strong>{{ proof.metrics.followers_count if proof.metrics.followers_count is not none else 'N/A' }}</strong>
+      </article>
+    </section>
+
+    <section class="insight-grid">
+      <article class="panel narrative-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Seller Signals</p>
+            <h2>Main Inventory Types</h2>
+          </div>
+        </div>
+
+        <div class="chip-list">
+          {% for category in proof_view.primary_categories %}
+          <span class="chip">{{ category }}</span>
+          {% endfor %}
+        </div>
+
+        <h3>Representative Items</h3>
+        {% if proof_view.sample_items %}
+        <ul class="item-list">
+          {% for item in proof_view.sample_items %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">No representative item names were captured.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel evidence-card">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Evidence</p>
+            <h2>Capture Metadata</h2>
+          </div>
+        </div>
+
+        <dl class="detail-list">
+          <div><dt>Captured At</dt><dd>{{ proof.captured_at }}</dd></div>
+          <div><dt>Expires At</dt><dd>{{ proof.expires_at }}</dd></div>
+          <div><dt>Parser Version</dt><dd>{{ proof.evidence.parser_version }}</dd></div>
+          <div><dt>Extractor Strategy</dt><dd>{{ proof.evidence.extractor_strategy }}</dd></div>
+          <div><dt>Status</dt><dd>{{ proof.status }}</dd></div>
+        </dl>
+
+        <details class="technical-block">
+          <summary>Technical Proof Details</summary>
+          <dl class="detail-list technical-list">
+            <div><dt>Proof SHA-256</dt><dd class="hash">{{ proof.proof_sha256 }}</dd></div>
+            <div><dt>HTML SHA-256</dt><dd class="hash">{{ proof.evidence.raw_html_sha256 }}</dd></div>
+            <div><dt>Text SHA-256</dt><dd class="hash">{{ proof.evidence.visible_text_sha256 }}</dd></div>
+            <div><dt>Screenshot SHA-256</dt><dd class="hash">{{ proof.evidence.screenshot_sha256 }}</dd></div>
+            <div><dt>Signature</dt><dd class="hash">{{ proof.signature }}</dd></div>
+          </dl>
+        </details>
+      </article>
+    </section>
+
+    <section class="panel technical-panel">
+      <details class="json-block">
+        <summary>Proof JSON</summary>
+        <pre class="result-json">{{ proof_json }}</pre>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

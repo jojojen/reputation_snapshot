@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mercari Reputation Snapshot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <section class="panel hero">
+      <p class="eyebrow">Third-party Public Snapshot</p>
+      <h1>Mercari Reputation Snapshot</h1>
+      <p class="lead">輸入 Mercari 公開賣家頁，建立帶有證據雜湊與 Ed25519 簽章的公開信譽快照。</p>
+      <form id="capture-form" class="capture-form">
+        <label for="profile_url">Mercari 個人頁網址</label>
+        <input
+          id="profile_url"
+          name="profile_url"
+          type="url"
+          placeholder="https://jp.mercari.com/user/profile/123456789"
+          required
+        >
+        <label for="expires_in_days">有效天數</label>
+        <input id="expires_in_days" name="expires_in_days" type="number" min="1" max="365" value="30">
+        <button type="submit">建立 Snapshot</button>
+      </form>
+    </section>
+
+    <section class="panel result-panel">
+      <div class="result-head">
+        <h2>執行結果</h2>
+        <span id="status-badge" class="status-badge idle">等待中</span>
+      </div>
+      <p id="result-message" class="result-message">送出後會在這裡顯示 capture 與 proof 結果。</p>
+      <div id="result-actions" class="result-actions"></div>
+      <pre id="result-json" class="result-json"></pre>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

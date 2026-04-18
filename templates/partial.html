@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Partial Snapshot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="proof-body">
+  <main class="shell proof-shell">
+    <section class="panel warning-panel">
+      <div class="identity-top">
+        <div class="pill-row">
+          {% if proof %}
+          <span class="platform-pill">{{ proof_view.platform_label }}</span>
+          <span class="status-pill warn">Partial Snapshot</span>
+          {% else %}
+          <span class="status-pill danger">Proof Missing</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <p class="eyebrow">Partial Proof</p>
+      <h1>{% if proof %}這是一份不完整的快照{% else %}找不到指定的 Proof{% endif %}</h1>
+      <p class="lead">
+        {% if proof %}
+        {% if proof.signals.bio_excerpt %}
+        {{ proof.signals.bio_excerpt }}
+        {% else %}
+        Core fields were only partially captured from the seller's public profile.
+        {% endif %}
+        {% else %}
+        請確認 proof id 是否正確，或該 proof 是否已被清除。
+        {% endif %}
+      </p>
+
+      {% if proof %}
+      <div class="chip-list">
+        {% for category in proof_view.primary_categories %}
+        <span class="chip">{{ category }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>缺失欄位</h2>
+      <ul class="item-list">
+        {% for field in missing_fields %}
+        <li>{{ field }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    {% if proof %}
+    <section class="metric-grid">
+      <article class="panel metric-card">
+        <span>Total Reviews</span>
+        <strong>{{ proof.metrics.total_reviews if proof.metrics.total_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Positive</span>
+        <strong>{{ proof.metrics.positive_reviews if proof.metrics.positive_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Negative</span>
+        <strong>{{ proof.metrics.negative_reviews if proof.metrics.negative_reviews is not none else 'N/A' }}</strong>
+      </article>
+      <article class="panel metric-card">
+        <span>Listings</span>
+        <strong>{{ proof.metrics.listing_count if proof.metrics.listing_count is not none else 'N/A' }}</strong>
+      </article>
+    </section>
+
+    <section class="panel technical-panel">
+      <details class="json-block">
+        <summary>Proof JSON</summary>
+        <pre class="result-json">{{ proof_json }}</pre>
+      </details>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

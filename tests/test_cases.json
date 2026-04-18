@@ -1,0 +1,342 @@
+[
+  {
+    "name": "high_01",
+    "category": "high",
+    "fixture": "fixture_high",
+    "url": "https://jp.mercari.com/user/profile/100000001",
+    "notes": "high volume seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 60,
+      "max_score": 90
+    }
+  },
+  {
+    "name": "high_02",
+    "category": "high",
+    "fixture": "fixture_high",
+    "url": "https://jp.mercari.com/user/profile/100000002",
+    "notes": "high volume seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 60,
+      "max_score": 90
+    }
+  },
+  {
+    "name": "high_03",
+    "category": "high",
+    "fixture": "fixture_high",
+    "url": "https://jp.mercari.com/user/profile/100000003",
+    "notes": "high volume seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 60,
+      "max_score": 90
+    }
+  },
+  {
+    "name": "high_04",
+    "category": "high",
+    "fixture": "fixture_high",
+    "url": "https://jp.mercari.com/user/profile/100000004",
+    "notes": "high volume seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 60,
+      "max_score": 90
+    }
+  },
+  {
+    "name": "high_05",
+    "category": "high",
+    "fixture": "fixture_high",
+    "url": "https://jp.mercari.com/user/profile/100000005",
+    "notes": "high volume seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 60,
+      "max_score": 90
+    }
+  },
+  {
+    "name": "medium_01",
+    "category": "medium",
+    "fixture": "fixture_medium",
+    "url": "https://jp.mercari.com/user/profile/200000001",
+    "notes": "medium seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 30,
+      "max_score": 55
+    }
+  },
+  {
+    "name": "medium_02",
+    "category": "medium",
+    "fixture": "fixture_medium",
+    "url": "https://jp.mercari.com/user/profile/200000002",
+    "notes": "medium seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 30,
+      "max_score": 55
+    }
+  },
+  {
+    "name": "medium_03",
+    "category": "medium",
+    "fixture": "fixture_medium",
+    "url": "https://jp.mercari.com/user/profile/200000003",
+    "notes": "medium seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 30,
+      "max_score": 55
+    }
+  },
+  {
+    "name": "medium_04",
+    "category": "medium",
+    "fixture": "fixture_medium",
+    "url": "https://jp.mercari.com/user/profile/200000004",
+    "notes": "medium seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 30,
+      "max_score": 55
+    }
+  },
+  {
+    "name": "medium_05",
+    "category": "medium",
+    "fixture": "fixture_medium",
+    "url": "https://jp.mercari.com/user/profile/200000005",
+    "notes": "medium seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 30,
+      "max_score": 55
+    }
+  },
+  {
+    "name": "low_01",
+    "category": "low",
+    "fixture": "fixture_low",
+    "url": "https://jp.mercari.com/user/profile/300000001",
+    "notes": "low activity seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 10,
+      "max_score": 30
+    }
+  },
+  {
+    "name": "low_02",
+    "category": "low",
+    "fixture": "fixture_low",
+    "url": "https://jp.mercari.com/user/profile/300000002",
+    "notes": "low activity seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 10,
+      "max_score": 30
+    }
+  },
+  {
+    "name": "low_03",
+    "category": "low",
+    "fixture": "fixture_low",
+    "url": "https://jp.mercari.com/user/profile/300000003",
+    "notes": "low activity seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 10,
+      "max_score": 30
+    }
+  },
+  {
+    "name": "low_04",
+    "category": "low",
+    "fixture": "fixture_low",
+    "url": "https://jp.mercari.com/user/profile/300000004",
+    "notes": "low activity seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 10,
+      "max_score": 30
+    }
+  },
+  {
+    "name": "low_05",
+    "category": "low",
+    "fixture": "fixture_low",
+    "url": "https://jp.mercari.com/user/profile/300000005",
+    "notes": "low activity seller",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 10,
+      "max_score": 30
+    }
+  },
+  {
+    "name": "boundary_01",
+    "category": "boundary",
+    "fixture": "fixture_regex",
+    "url": "https://jp.mercari.com/user/profile/400000001",
+    "notes": "metric labels in reverse order",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 15,
+      "max_score": 40
+    }
+  },
+  {
+    "name": "boundary_02",
+    "category": "boundary",
+    "fixture": "fixture_regex",
+    "url": "https://jp.mercari.com/user/profile/400000002",
+    "notes": "metric labels in reverse order",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 15,
+      "max_score": 40
+    }
+  },
+  {
+    "name": "boundary_03",
+    "category": "boundary",
+    "fixture": "fixture_partial",
+    "url": "https://jp.mercari.com/user/profile/400000003",
+    "notes": "missing followers should become partial",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": false,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 0,
+      "max_score": 20
+    }
+  },
+  {
+    "name": "boundary_04",
+    "category": "boundary",
+    "fixture": "fixture_partial",
+    "url": "https://jp.mercari.com/user/profile/400000004",
+    "notes": "missing followers should become partial",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": false,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 0,
+      "max_score": 20
+    }
+  },
+  {
+    "name": "boundary_05",
+    "category": "boundary",
+    "fixture": "fixture_title_fallback",
+    "url": "https://jp.mercari.com/user/profile/400000005",
+    "notes": "fallback to title when h1 is absent",
+    "expect": {
+      "has_display_name": true,
+      "has_total_reviews": true,
+      "has_listing_count": true,
+      "has_followers_count": true,
+      "has_following_count": true,
+      "proof_should_generate": true,
+      "min_score": 20,
+      "max_score": 45
+    }
+  }
+]
