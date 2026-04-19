@@ -1,3 +1,5 @@
+const i18n = window._i18n || {};
+
 const form = document.getElementById("capture-form");
 const resultMessage = document.getElementById("result-message");
 const resultJson = document.getElementById("result-json");
@@ -5,9 +7,9 @@ const resultActions = document.getElementById("result-actions");
 const statusBadge = document.getElementById("status-badge");
 
 const progressMessages = [
-  "正在解析商品連結，找出賣家資訊…",
-  "正在檢查這位賣家是否已有可用快照…",
-  "若沒有既有快照，系統會自動建立新的快照，通常需要幾秒鐘…",
+  i18n.js_progress_1 || "Parsing the URL and identifying the seller\u2026",
+  i18n.js_progress_2 || "Checking for an existing snapshot\u2026",
+  i18n.js_progress_3 || "No existing snapshot \u2014 creating a new one, this may take a few seconds\u2026",
 ];
 
 let progressTimers = [];
@@ -40,7 +42,7 @@ function renderActions(data) {
 
   const link = document.createElement("a");
   link.href = data.proof_url;
-  link.textContent = "若未自動跳轉，點此開啟 proof 頁面";
+  link.textContent = i18n.js_proof_link || "If not redirected automatically, click here";
   link.className = "action-link";
   resultActions.appendChild(link);
 }
@@ -53,7 +55,7 @@ function redirectToProof(proofUrl) {
 
 form?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  setStatus("loading", "查詢中");
+  setStatus("loading", i18n.js_loading || "Loading\u2026");
   resultActions.innerHTML = "";
   resultJson.hidden = true;
   resultJson.textContent = "";
@@ -79,18 +81,19 @@ form?.addEventListener("submit", async (event) => {
     clearProgressTimers();
     renderActions(data);
 
+    const name = data.display_name || "?";
     if (data.reused) {
-      setStatus("success", "已找到");
-      resultMessage.textContent = `已找到 ${data.display_name || "這位賣家"} 的既有快照，正在前往 proof 頁面…`;
+      setStatus("success", i18n.js_found_label || "Found");
+      resultMessage.textContent = (i18n.js_reused_message || "Existing snapshot found for {name}. Redirecting\u2026").replace("{name}", name);
     } else {
-      setStatus("success", "已建立");
-      resultMessage.textContent = `${data.display_name || "賣家"} 的快照已建立完成，正在前往 proof 頁面…`;
+      setStatus("success", i18n.js_created_label || "Created");
+      resultMessage.textContent = (i18n.js_created_message || "Snapshot created for {name}. Redirecting\u2026").replace("{name}", name);
     }
 
     redirectToProof(data.proof_url);
   } catch (error) {
     clearProgressTimers();
-    setStatus("error", "查詢失敗");
-    resultMessage.textContent = error.message || "目前無法建立快照，請稍後再試。";
+    setStatus("error", i18n.js_error_label || "Error");
+    resultMessage.textContent = error.message || (i18n.js_error_message || "Could not create snapshot. Please try again.");
   }
 });

@@ -1,23 +1,29 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="{{ t.lang_html }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mercari Reputation Snapshot</title>
+  <title>{{ t.app_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  <nav class="lang-switcher">
+    <a href="/lang/zh" class="lang-btn{{ ' active' if lang == 'zh' }}" title="中文">🇹🇼</a>
+    <a href="/lang/en" class="lang-btn{{ ' active' if lang == 'en' }}" title="English">🇬🇧</a>
+    <a href="/lang/ja" class="lang-btn{{ ' active' if lang == 'ja' }}" title="日本語">🇯🇵</a>
+  </nav>
+
   <main class="shell">
     <section class="panel hero home-hero">
       <div class="hero-copy">
-        <p class="eyebrow">Third-party Public Snapshot</p>
-        <h1>Mercari Reputation Snapshot</h1>
-        <p class="lead">直接貼上 Mercari 商品連結，系統會自動找到賣家，先檢查是否已有可用快照；如果沒有，就建立新的快照再帶你前往 proof 頁面。</p>
+        <p class="eyebrow">{{ t.third_party_label }}</p>
+        <h1>{{ t.app_name }}</h1>
+        <p class="lead">{{ t.hero_lead }}</p>
       </div>
 
       <form id="capture-form" class="capture-form">
-        <label for="query_url">貼上 Mercari 商品連結</label>
-        <p class="input-note">建議直接貼商品頁網址，例如 `https://jp.mercari.com/item/m74005892833`。目前也接受賣家頁連結。</p>
+        <label for="query_url">{{ t.input_label }}</label>
+        <p class="input-note">{{ t.input_note }}</p>
 
         <div class="capture-form-row">
           <input
@@ -27,27 +33,31 @@
             placeholder="https://jp.mercari.com/item/m74005892833"
             required
           >
-          <button type="submit">查詢賣家快照</button>
+          <button type="submit">{{ t.submit_button }}</button>
         </div>
 
-        <p class="form-hint">查詢流程：解析商品頁 → 找出賣家 → 檢查既有快照 → 必要時自動建立新快照。</p>
+        <p class="form-hint">{{ t.form_hint }}</p>
       </form>
     </section>
 
     <section class="panel result-panel">
       <div class="result-head">
         <div>
-          <p class="eyebrow">Lookup Status</p>
-          <h2>查詢進度</h2>
+          <p class="eyebrow">{{ t.lookup_status_label }}</p>
+          <h2 id="lookup-heading">{{ t.lookup_status_label }}</h2>
         </div>
-        <span id="status-badge" class="status-badge idle">待查詢</span>
+        <span id="status-badge" class="status-badge idle">{{ t.status_idle }}</span>
       </div>
 
-      <p id="result-message" class="result-message" aria-live="polite">貼上商品連結後，系統會自動幫你找到賣家快照。</p>
+      <p id="result-message" class="result-message" aria-live="polite">{{ t.idle_message }}</p>
       <div id="result-actions" class="result-actions"></div>
       <pre id="result-json" class="result-json" hidden></pre>
     </section>
   </main>
+
+  <script>
+    window._i18n = {{ t | tojson }};
+  </script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

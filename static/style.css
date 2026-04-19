@@ -23,6 +23,40 @@
   box-sizing: border-box;
 }
 
+.lang-switcher {
+  position: fixed;
+  top: 14px;
+  right: 18px;
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 252, 246, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 8px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(29, 36, 44, 0.1);
+}
+
+.lang-btn {
+  font-size: 1.2rem;
+  line-height: 1;
+  text-decoration: none;
+  padding: 3px 5px;
+  border-radius: 6px;
+  opacity: 0.45;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.lang-btn:hover {
+  opacity: 0.85;
+  transform: scale(1.1);
+}
+
+.lang-btn.active {
+  opacity: 1;
+}
+
 body {
   margin: 0;
   min-height: 100vh;

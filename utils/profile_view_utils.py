@@ -99,7 +99,10 @@ def _review_ratios(
     no_record_count = max(0, review_total - rated_total)
     positive_ratio = round(pos / review_total * 100)
     negative_ratio = round(neg / review_total * 100)
-    no_record_ratio = 100 - positive_ratio - negative_ratio
+    # Ensure non-zero negative count is always visible in the bar
+    if neg > 0 and negative_ratio == 0:
+        negative_ratio = 1
+    no_record_ratio = max(0, 100 - positive_ratio - negative_ratio)
     rated_positive_pct = round(pos / rated_total * 100) if rated_total else None
 
     return positive_ratio, negative_ratio, no_record_ratio, no_record_count, rated_total, rated_positive_pct

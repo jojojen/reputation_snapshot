@@ -1,0 +1,255 @@
+from __future__ import annotations
+
+from typing import Any
+
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    "en": {
+        "lang_code": "en",
+        "lang_html": "en",
+        "app_name": "Mercari Reputation Snapshot",
+        "third_party_label": "Third-party Public Snapshot",
+        "hero_lead": "Paste a Mercari item or seller URL. The system finds the seller, checks for an existing snapshot, and creates a new one if needed.",
+        "input_label": "Paste a Mercari URL",
+        "input_note": "Recommended: item URL, e.g. https://jp.mercari.com/item/m74005892833. Seller profile URLs are also accepted.",
+        "submit_button": "Look Up Seller",
+        "form_hint": "Flow: parse item \u2192 identify seller \u2192 check snapshot \u2192 create if needed.",
+        "lookup_status_label": "Lookup Status",
+        "status_idle": "Idle",
+        "idle_message": "Paste a URL above and the system will find the seller snapshot.",
+        "public_reputation_snapshot": "Public Reputation Snapshot",
+        "open_source_profile": "Open source profile",
+        "reputation_overview": "Reputation Overview",
+        "total_reviews": "Total reviews",
+        "positive_among_rated": "{pct}% positive among {total} rated",
+        "positive": "positive",
+        "negative": "negative",
+        "older_history": "older history",
+        "older_history_tooltip": "Transactions outside the recent rating window \u2014 older completed trades whose ratings are no longer shown.",
+        "no_review_breakdown": "Positive / negative counts were not available on the captured public page.",
+        "listings": "Listings",
+        "followers": "Followers",
+        "following": "Following",
+        "seller_signals": "Seller Signals",
+        "main_inventory_types": "Main Inventory Types",
+        "representative_items": "Representative Items",
+        "no_bio": "No seller bio was captured from the public page.",
+        "no_items": "No representative item names were captured.",
+        "evidence": "Evidence",
+        "capture_metadata": "Capture Metadata",
+        "captured_at_label": "Captured At",
+        "expires_at_label": "Expires At",
+        "parser_version_label": "Parser Version",
+        "extractor_strategy_label": "Extractor Strategy",
+        "status_label": "Status",
+        "technical_details": "Technical Proof Details",
+        "label_proof_sha256": "Proof SHA-256",
+        "label_html_sha256": "HTML SHA-256",
+        "label_text_sha256": "Text SHA-256",
+        "label_screenshot_sha256": "Screenshot SHA-256",
+        "label_signature": "Signature",
+        "label_proof_json": "Proof JSON",
+        "partial_snapshot_label": "Partial Snapshot",
+        "proof_missing_label": "Proof Missing",
+        "incomplete_snapshot_title": "This snapshot is incomplete",
+        "proof_not_found_title": "The specified proof was not found",
+        "partial_core_description": "Core fields were only partially captured from the seller\u2019s public profile.",
+        "proof_id_hint": "Please verify the proof ID, or the proof may have been cleared.",
+        "missing_fields_title": "Missing Fields",
+        "js_loading": "Fetching seller snapshot\u2026",
+        "js_found_label": "Found",
+        "js_created_label": "Created",
+        "js_error_label": "Error",
+        "js_reused_message": "Existing snapshot found for {name}. Redirecting\u2026",
+        "js_created_message": "Snapshot created for {name}. Redirecting\u2026",
+        "js_error_message": "Could not create snapshot. Please try again.",
+        "js_proof_link": "If not redirected automatically, click here",
+        "js_progress_1": "Parsing the URL and identifying the seller\u2026",
+        "js_progress_2": "Checking for an existing snapshot\u2026",
+        "js_progress_3": "No existing snapshot \u2014 creating a new one, this may take a few seconds\u2026",
+    },
+    "zh": {
+        "lang_code": "zh",
+        "lang_html": "zh-Hant",
+        "app_name": "Mercari \u4fe1\u8b7d\u5feb\u7167",
+        "third_party_label": "\u7b2c\u4e09\u65b9\u516c\u958b\u5feb\u7167",
+        "hero_lead": "\u8cbc\u4e0a Mercari \u5546\u54c1\u9023\u7d50\uff0c\u7cfb\u7d71\u6703\u81ea\u52d5\u627e\u5230\u8ce3\u5bb6\uff0c\u5148\u6aa2\u67e5\u662f\u5426\u5df2\u6709\u53ef\u7528\u5feb\u7167\uff1b\u5982\u679c\u6c92\u6709\uff0c\u5c31\u5efa\u7acb\u65b0\u7684\u5feb\u7167\u518d\u5e36\u4f60\u524d\u5f80 proof \u9801\u9762\u3002",
+        "input_label": "\u8cbc\u4e0a Mercari \u5546\u54c1\u9023\u7d50",
+        "input_note": "\u5efa\u8b70\u76f4\u63a5\u8cbc\u5546\u54c1\u9801\u7db2\u5740\uff0c\u4f8b\u5982 https://jp.mercari.com/item/m74005892833\u3002\u76ee\u524d\u4e5f\u63a5\u53d7\u8ce3\u5bb6\u9801\u9023\u7d50\u3002",
+        "submit_button": "\u67e5\u8a62\u8ce3\u5bb6\u5feb\u7167",
+        "form_hint": "\u67e5\u8a62\u6d41\u7a0b\uff1a\u89e3\u6790\u5546\u54c1\u9801 \u2192 \u627e\u51fa\u8ce3\u5bb6 \u2192 \u6aa2\u67e5\u65e2\u6709\u5feb\u7167 \u2192 \u5fc5\u8981\u6642\u81ea\u52d5\u5efa\u7acb\u65b0\u5feb\u7167\u3002",
+        "lookup_status_label": "\u67e5\u8a62\u72c0\u614b",
+        "status_idle": "\u5f85\u67e5\u8a62",
+        "idle_message": "\u8cbc\u4e0a\u5546\u54c1\u9023\u7d50\u5f8c\uff0c\u7cfb\u7d71\u6703\u81ea\u52d5\u5e6b\u4f60\u627e\u5230\u8ce3\u5bb6\u5feb\u7167\u3002",
+        "public_reputation_snapshot": "\u516c\u958b\u4fe1\u8b7d\u5feb\u7167",
+        "open_source_profile": "\u958b\u555f\u539f\u59cb\u8ce3\u5bb6\u9801",
+        "reputation_overview": "\u4fe1\u8b7d\u7e3d\u89bd",
+        "total_reviews": "\u7e3d\u8a55\u50f9\u6578",
+        "positive_among_rated": "\u6700\u8fd1 {total} \u7b46\u8a55\u50f9\u4e2d {pct}% \u70ba\u6b63\u8a55",
+        "positive": "\u6b63\u8a55",
+        "negative": "\u8ca0\u8a55",
+        "older_history": "\u65e9\u671f\u7d00\u9304",
+        "older_history_tooltip": "\u8d85\u51fa\u8a55\u50f9\u986f\u793a\u7bc4\u570d\u7684\u65e9\u671f\u4ea4\u6613\uff0c\u7121\u4fdd\u5b58\u8a55\u50f9\u8cc7\u6599\u3002",
+        "no_review_breakdown": "\u64f7\u53d6\u7684\u516c\u958b\u9801\u9762\u672a\u63d0\u4f9b\u6b63\u8ca0\u8a55\u6578\u91cf\u3002",
+        "listings": "\u5546\u54c1\u6578",
+        "followers": "\u8ffd\u8e64\u8005",
+        "following": "\u8ffd\u8e64\u4e2d",
+        "seller_signals": "\u8ce3\u5bb6\u8a0a\u865f",
+        "main_inventory_types": "\u4e3b\u8981\u5546\u54c1\u985e\u578b",
+        "representative_items": "\u4ee3\u8868\u6027\u5546\u54c1",
+        "no_bio": "\u516c\u958b\u9801\u9762\u672a\u64f7\u53d6\u5230\u8ce3\u5bb6\u81ea\u4ecb\u3002",
+        "no_items": "\u672a\u64f7\u53d6\u5230\u5546\u54c1\u540d\u7a31\u3002",
+        "evidence": "\u5b58\u8b49",
+        "capture_metadata": "\u64f7\u53d6\u5f8c\u8a2d\u8cc7\u6599",
+        "captured_at_label": "\u64f7\u53d6\u6642\u9593",
+        "expires_at_label": "\u6709\u6548\u671f\u9650",
+        "parser_version_label": "\u89e3\u6790\u5668\u7248\u672c",
+        "extractor_strategy_label": "\u629b\u53d6\u7b56\u7565",
+        "status_label": "\u72c0\u614b",
+        "technical_details": "\u6280\u8853\u6027 Proof \u7d30\u7bc0",
+        "label_proof_sha256": "Proof SHA-256",
+        "label_html_sha256": "HTML SHA-256",
+        "label_text_sha256": "\u6587\u5b57 SHA-256",
+        "label_screenshot_sha256": "\u622a\u5716 SHA-256",
+        "label_signature": "\u7c3d\u7ae0",
+        "label_proof_json": "Proof JSON",
+        "partial_snapshot_label": "\u4e0d\u5b8c\u6574\u5feb\u7167",
+        "proof_missing_label": "\u627e\u4e0d\u5230 Proof",
+        "incomplete_snapshot_title": "\u9019\u662f\u4e00\u4efd\u4e0d\u5b8c\u6574\u7684\u5feb\u7167",
+        "proof_not_found_title": "\u627e\u4e0d\u5230\u6307\u5b9a\u7684 Proof",
+        "partial_core_description": "\u90e8\u5206\u6838\u5fc3\u6b04\u4f4d\u672a\u80fd\u5f9e\u8ce3\u5bb6\u516c\u958b\u9801\u9762\u64f7\u53d6\u3002",
+        "proof_id_hint": "\u8acb\u78ba\u8a8d proof id \u662f\u5426\u6b63\u78ba\uff0c\u6216\u8a72 proof \u662f\u5426\u5df2\u88ab\u6e05\u9664\u3002",
+        "missing_fields_title": "\u7f3a\u5931\u6b04\u4f4d",
+        "js_loading": "\u6b63\u5728\u64f7\u53d6\u8ce3\u5bb6\u5feb\u7167\u2026",
+        "js_found_label": "\u5df2\u627e\u5230",
+        "js_created_label": "\u5df2\u5efa\u7acb",
+        "js_error_label": "\u67e5\u8a62\u5931\u6557",
+        "js_reused_message": "\u5df2\u627e\u5230 {name} \u7684\u65e2\u6709\u5feb\u7167\uff0c\u6b63\u5728\u524d\u5f80 proof \u9801\u9762\u2026",
+        "js_created_message": "{name} \u7684\u5feb\u7167\u5df2\u5efa\u7acb\u5b8c\u6210\uff0c\u6b63\u5728\u524d\u5f80 proof \u9801\u9762\u2026",
+        "js_error_message": "\u76ee\u524d\u7121\u6cd5\u5efa\u7acb\u5feb\u7167\uff0c\u8acb\u7a0d\u5f8c\u518d\u8a66\u3002",
+        "js_proof_link": "\u82e5\u672a\u81ea\u52d5\u8df3\u8f49\uff0c\u9ede\u6b64\u958b\u555f proof \u9801\u9762",
+        "js_progress_1": "\u6b63\u5728\u89e3\u6790\u5546\u54c1\u9023\u7d50\uff0c\u627e\u51fa\u8ce3\u5bb6\u8cc7\u8a0a\u2026",
+        "js_progress_2": "\u6b63\u5728\u6aa2\u67e5\u9019\u4f4d\u8ce3\u5bb6\u662f\u5426\u5df2\u6709\u53ef\u7528\u5feb\u7167\u2026",
+        "js_progress_3": "\u82e5\u6c92\u6709\u65e2\u6709\u5feb\u7167\uff0c\u7cfb\u7d71\u6703\u81ea\u52d5\u5efa\u7acb\u65b0\u7684\u5feb\u7167\uff0c\u901a\u5e38\u9700\u8981\u5e7e\u79d2\u9418\u2026",
+    },
+    "ja": {
+        "lang_code": "ja",
+        "lang_html": "ja",
+        "app_name": "Mercari \u8a55\u4fa1\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8",
+        "third_party_label": "\u30b5\u30fc\u30c9\u30d1\u30fc\u30c6\u30a3\u516c\u958b\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8",
+        "hero_lead": "Mercari \u306e\u5546\u54c1URL\u3092\u8cbc\u308a\u4ed8\u3051\u3066\u304f\u3060\u3055\u3044\u3002\u30b7\u30b9\u30c6\u30e0\u304c\u51fa\u54c1\u8005\u3092\u7279\u5b9a\u3057\u3001\u65e2\u5b58\u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u78ba\u8a8d\u3001\u306a\u3051\u308c\u3070\u65b0\u898f\u4f5c\u6210\u3057\u307e\u3059\u3002",
+        "input_label": "Mercari URL\u3092\u8cbc\u308a\u4ed8\u3051",
+        "input_note": "\u5546\u54c1\u30da\u30fc\u30b8\u306eURL\u3092\u63a8\u5968\uff1a\u4f8b https://jp.mercari.com/item/m74005892833\u3002\u51fa\u54c1\u8005\u30da\u30fc\u30b8\u306eURL\u3082\u4f7f\u7528\u53ef\u3002",
+        "submit_button": "\u51fa\u54c1\u8005\u3092\u691c\u7d22",
+        "form_hint": "\u691c\u7d22\u30d5\u30ed\u30fc\uff1a\u5546\u54c1\u30da\u30fc\u30b8\u89e3\u6790 \u2192 \u51fa\u54c1\u8005\u7279\u5b9a \u2192 \u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u78ba\u8a8d \u2192 \u5fc5\u8981\u306b\u5fdc\u3058\u3066\u65b0\u898f\u4f5c\u6210\u3002",
+        "lookup_status_label": "\u691c\u7d22\u72b6\u614b",
+        "status_idle": "\u5f85\u6a5f\u4e2d",
+        "idle_message": "URL\u3092\u8cbc\u308a\u4ed8\u3051\u308b\u3068\u3001\u51fa\u54c1\u8005\u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u81ea\u52d5\u7684\u306b\u691c\u7d22\u3057\u307e\u3059\u3002",
+        "public_reputation_snapshot": "\u516c\u958b\u8a55\u4fa1\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8",
+        "open_source_profile": "\u51fa\u54c1\u8005\u30d7\u30ed\u30d5\u30a3\u30fc\u30eb\u3092\u958b\u304f",
+        "reputation_overview": "\u8a55\u4fa1\u30b5\u30de\u30ea\u30fc",
+        "total_reviews": "\u7dcf\u8a55\u4fa1\u6570",
+        "positive_among_rated": "\u76f4\u8fd1{total}\u4ef6\u4e2d{pct}%\u304c\u9ad8\u8a55\u4fa1",
+        "positive": "\u9ad8\u8a55\u4fa1",
+        "negative": "\u4f4e\u8a55\u4fa1",
+        "older_history": "\u305d\u308c\u4ee5\u524d\u306e\u53d6\u5f15",
+        "older_history_tooltip": "\u8a55\u4fa1\u8868\u793a\u7bc4\u56f2\u5916\u306e\u904e\u53bb\u306e\u53d6\u5f15\u3002\u8a55\u4fa1\u30c7\u30fc\u30bf\u306f\u4fdd\u5b58\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002",
+        "no_review_breakdown": "\u53d6\u5f97\u3057\u305f\u516c\u958b\u30da\u30fc\u30b8\u306b\u306f\u9ad8\u8a55\u4fa1\u30fb\u4f4e\u8a55\u4fa1\u306e\u5185\u8a33\u304c\u8868\u793a\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+        "listings": "\u51fa\u54c1\u6570",
+        "followers": "\u30d5\u30a9\u30ed\u30ef\u30fc",
+        "following": "\u30d5\u30a9\u30ed\u30fc\u4e2d",
+        "seller_signals": "\u51fa\u54c1\u8005\u30b7\u30b0\u30ca\u30eb",
+        "main_inventory_types": "\u4e3b\u306a\u5546\u54c1\u30ab\u30c6\u30b4\u30ea",
+        "representative_items": "\u4ee3\u8868\u7684\u306a\u5546\u54c1",
+        "no_bio": "\u516c\u958b\u30da\u30fc\u30b8\u304b\u3089\u81ea\u5df1\u7d39\u4ecb\u3092\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+        "no_items": "\u5546\u54c1\u540d\u3092\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+        "evidence": "\u30a8\u30d3\u30c7\u30f3\u30b9",
+        "capture_metadata": "\u53d6\u5f97\u30e1\u30bf\u30c7\u30fc\u30bf",
+        "captured_at_label": "\u53d6\u5f97\u65e5\u6642",
+        "expires_at_label": "\u6709\u52b9\u671f\u9650",
+        "parser_version_label": "\u30d1\u30fc\u30b5\u30fc\u30d0\u30fc\u30b8\u30e7\u30f3",
+        "extractor_strategy_label": "\u62bd\u51fa\u6226\u7565",
+        "status_label": "\u30b9\u30c6\u30fc\u30bf\u30b9",
+        "technical_details": "\u6280\u8853\u7684\u306a\u8a73\u7d30",
+        "label_proof_sha256": "Proof SHA-256",
+        "label_html_sha256": "HTML SHA-256",
+        "label_text_sha256": "\u30c6\u30ad\u30b9\u30c8 SHA-256",
+        "label_screenshot_sha256": "\u30b9\u30af\u30ea\u30fc\u30f3\u30b7\u30e7\u30c3\u30c8 SHA-256",
+        "label_signature": "\u7f72\u540d",
+        "label_proof_json": "Proof JSON",
+        "partial_snapshot_label": "\u4e0d\u5b8c\u5168\u306a\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8",
+        "proof_missing_label": "Proof\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093",
+        "incomplete_snapshot_title": "\u3053\u308c\u306f\u4e0d\u5b8c\u5168\u306a\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3067\u3059",
+        "proof_not_found_title": "\u6307\u5b9a\u3055\u308c\u305fProof\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093",
+        "partial_core_description": "\u51fa\u54c1\u8005\u306e\u516c\u958b\u30d7\u30ed\u30d5\u30a3\u30fc\u30eb\u304b\u3089\u4e00\u90e8\u30d5\u30a3\u30fc\u30eb\u30c9\u3057\u304b\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+        "proof_id_hint": "proof ID\u304c\u6b63\u3057\u3044\u304b\u3001\u307e\u305f\u306fproof\u304c\u524a\u9664\u3055\u308c\u3066\u3044\u306a\u3044\u304b\u3054\u78ba\u8a8d\u304f\u3060\u3055\u3044\u3002",
+        "missing_fields_title": "\u4e0d\u8db3\u30d5\u30a3\u30fc\u30eb\u30c9",
+        "js_loading": "\u51fa\u54c1\u8005\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u53d6\u5f97\u4e2d\u2026",
+        "js_found_label": "\u767a\u898b",
+        "js_created_label": "\u4f5c\u6210\u5b8c\u4e86",
+        "js_error_label": "\u30a8\u30e9\u30fc",
+        "js_reused_message": "{name}\u306e\u65e2\u5b58\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u767a\u898b\u3057\u307e\u3057\u305f\u3002\u30ea\u30c0\u30a4\u30ec\u30af\u30c8\u4e2d\u2026",
+        "js_created_message": "{name}\u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3057\u305f\u3002\u30ea\u30c0\u30a4\u30ec\u30af\u30c8\u4e2d\u2026",
+        "js_error_message": "\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u4f5c\u6210\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u3082\u3046\u4e00\u5ea6\u304a\u8a66\u3057\u304f\u3060\u3055\u3044\u3002",
+        "js_proof_link": "\u81ea\u52d5\u3067\u30ea\u30c0\u30a4\u30ec\u30af\u30c8\u3055\u308c\u306a\u3044\u5834\u5408\u306f\u3053\u3061\u3089\u3092\u30af\u30ea\u30c3\u30af",
+        "js_progress_1": "URL\u3092\u89e3\u6790\u3057\u3066\u51fa\u54c1\u8005\u3092\u7279\u5b9a\u4e2d\u2026",
+        "js_progress_2": "\u65e2\u5b58\u306e\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u3092\u78ba\u8a8d\u4e2d\u2026",
+        "js_progress_3": "\u65e2\u5b58\u30b9\u30ca\u30c3\u30d7\u30b7\u30e7\u30c3\u30c8\u306a\u3057 \u2014 \u65b0\u898f\u4f5c\u6210\u4e2d\u3067\u3059\u3002\u6570\u79d2\u304b\u304b\u308b\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u2026",
+    },
+}
+
+
+def get_translations(lang: str) -> dict[str, str]:
+    return TRANSLATIONS.get(lang, TRANSLATIONS["en"])
+
+
+def detect_lang(request: Any) -> str:
+    lang = request.cookies.get("lang", "")
+    if lang in TRANSLATIONS:
+        return lang
+
+    ip = getattr(request, "remote_addr", "") or ""
+    if ip and ip not in ("127.0.0.1", "::1") and not _is_private_ip(ip):
+        country = _lookup_country(ip)
+        mapped = _country_to_lang(country)
+        if mapped:
+            return mapped
+
+    try:
+        best = request.accept_languages.best_match(["ja", "zh-TW", "zh", "en"])
+        if best:
+            if best.startswith("ja"):
+                return "ja"
+            if best.startswith("zh"):
+                return "zh"
+    except Exception:
+        pass
+
+    return "en"
+
+
+def _is_private_ip(ip: str) -> bool:
+    return (
+        ip.startswith("10.")
+        or ip.startswith("192.168.")
+        or ip.startswith("172.1")
+        or ip.startswith("172.2")
+        or ip.startswith("172.3")
+        or ip.startswith("fc")
+        or ip.startswith("fd")
+    )
+
+
+def _lookup_country(ip: str) -> str:
+    try:
+        import json as _json
+        from urllib.request import urlopen
+
+        with urlopen(f"http://ip-api.com/json/{ip}?fields=countryCode", timeout=2) as resp:
+            return _json.loads(resp.read()).get("countryCode", "")
+    except Exception:
+        return ""
+
+
+def _country_to_lang(country: str) -> str:
+    mapping = {"JP": "ja", "TW": "zh", "HK": "zh", "MO": "zh", "SG": "zh", "CN": "zh"}
+    return mapping.get(country.upper(), "")

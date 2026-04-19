@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, make_response, redirect, render_template, request
 
 from services.capture_service import capture_profile, resolve_profile_reference
 from services.parser_mercari import REQUIRED_FIELDS, parse_profile
@@ -18,6 +18,7 @@ from services.storage_service import (
 )
 from services.verify_service import verify_proof
 from utils.db_utils import ensure_runtime_directories, get_settings, init_db
+from utils.i18n import detect_lang, get_translations
 from utils.json_utils import pretty_json
 from utils.profile_view_utils import build_proof_view
 from utils.url_utils import MERCARI_URL_ERROR, is_valid_mercari_url
@@ -38,9 +39,19 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     ensure_runtime_directories()
     init_db()
 
+    @app.get("/lang/<code>")
+    def set_lang(code: str) -> Any:
+        referrer = request.referrer or "/"
+        resp = make_response(redirect(referrer))
+        if code in ("en", "zh", "ja"):
+            resp.set_cookie("lang", code, max_age=60 * 60 * 24 * 365)
+        return resp
+
     @app.get("/")
     def index() -> str:
-        return render_template("index.html")
+        lang = detect_lang(request)
+        t = get_translations(lang)
+        return render_template("index.html", t=t, lang=lang)
 
     @app.post("/api/captures")
     def create_capture() -> tuple[Any, int] | Any:
@@ -153,17 +164,23 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     def proof_page(proof_id: str) -> tuple[str, int] | str:
         document = get_proof_document(proof_id)
         if document is None:
-            return render_template("partial.html", proof=None, missing_fields=["proof_not_found"]), 404
+            lang = detect_lang(request)
+            t = get_translations(lang)
+            return render_template("partial.html", proof=None, missing_fields=["proof_not_found"], t=t, lang=lang), 404
 
         missing_fields = _missing_required_fields(document)
         template_name = "partial.html" if document.get("status") == "partial" else "proof.html"
         proof_view = build_proof_view(document)
+        lang = detect_lang(request)
+        t = get_translations(lang)
         return render_template(
             template_name,
             proof=document,
             proof_view=proof_view,
             missing_fields=missing_fields,
             proof_json=pretty_json(document),
+            t=t,
+            lang=lang,
         )
 
     return app

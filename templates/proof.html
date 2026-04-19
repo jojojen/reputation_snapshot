@@ -1,12 +1,18 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="{{ t.lang_html }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ proof.subject.display_name or 'Mercari Snapshot' }}</title>
+  <title>{{ proof.subject.display_name or t.app_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="proof-body">
+  <nav class="lang-switcher">
+    <a href="/lang/zh" class="lang-btn{{ ' active' if lang == 'zh' }}" title="中文">🇹🇼</a>
+    <a href="/lang/en" class="lang-btn{{ ' active' if lang == 'en' }}" title="English">🇬🇧</a>
+    <a href="/lang/ja" class="lang-btn{{ ' active' if lang == 'ja' }}" title="日本語">🇯🇵</a>
+  </nav>
+
   <main class="shell proof-shell">
     <section class="proof-hero">
       <article class="panel identity-card">
@@ -15,7 +21,7 @@
             <span class="platform-pill">{{ proof_view.platform_label }}</span>
             <span class="status-pill {{ proof_view.status_tone }}">{{ proof_view.status_label }}</span>
           </div>
-          <a class="source-link" href="{{ proof.source_url }}" target="_blank" rel="noreferrer">Open source profile</a>
+          <a class="source-link" href="{{ proof.source_url }}" target="_blank" rel="noreferrer">{{ t.open_source_profile }}</a>
         </div>
 
         <div class="identity-body">
@@ -28,13 +34,13 @@
           </div>
 
           <div class="identity-copy">
-            <p class="eyebrow">Public Reputation Snapshot</p>
+            <p class="eyebrow">{{ t.public_reputation_snapshot }}</p>
             <h1>{{ proof.subject.display_name or 'Unknown Seller' }}</h1>
             <p class="lead">
               {% if proof.signals.bio_excerpt %}
               {{ proof.signals.bio_excerpt }}
               {% else %}
-              No seller bio was captured from the public page.
+              {{ t.no_bio }}
               {% endif %}
             </p>
 
@@ -50,7 +56,7 @@
       <article class="panel trust-card">
         <div class="trust-card-head">
           <div>
-            <p class="eyebrow">Reputation Overview</p>
+            <p class="eyebrow">{{ t.reputation_overview }}</p>
             <h2>{{ proof.score.value }} / 100</h2>
             <p class="muted">{{ proof_view.score_headline }}</p>
           </div>
@@ -59,7 +65,7 @@
 
         <div class="review-summary">
           <div class="review-summary-line">
-            <span>Total reviews</span>
+            <span>{{ t.total_reviews }}</span>
             <strong>{{ proof.metrics.total_reviews if proof.metrics.total_reviews is not none else 'N/A' }}</strong>
           </div>
 
@@ -67,7 +73,7 @@
           {% if proof_view.rated_positive_pct is not none %}
           <div class="rated-callout">
             <span class="rated-pct">{{ proof_view.rated_positive_pct }}%</span>
-            <span class="rated-label">positive among {{ proof_view.rated_total }} rated</span>
+            <span class="rated-label">{{ t.positive_among_rated.format(pct=proof_view.rated_positive_pct, total=proof_view.rated_total) }}</span>
           </div>
           {% endif %}
 
@@ -79,33 +85,33 @@
           <div class="review-legend">
             <span class="legend-item legend-positive">
               <span class="legend-dot"></span>
-              {{ proof.metrics.positive_reviews or 0 }} positive
+              {{ proof.metrics.positive_reviews or 0 }} {{ t.positive }}
             </span>
             <span class="legend-item legend-negative">
               <span class="legend-dot"></span>
-              {{ proof.metrics.negative_reviews or 0 }} negative
+              {{ proof.metrics.negative_reviews or 0 }} {{ t.negative }}
             </span>
-            <span class="legend-item legend-norecord">
+            <span class="legend-item legend-norecord" title="{{ t.older_history_tooltip }}">
               <span class="legend-dot"></span>
-              {{ proof_view.no_record_count }} no rating
+              {{ proof_view.no_record_count }} {{ t.older_history }}
             </span>
           </div>
           {% else %}
-          <p class="muted">Positive / negative review counts were not exposed on the captured public page.</p>
+          <p class="muted">{{ t.no_review_breakdown }}</p>
           {% endif %}
         </div>
 
         <div class="trust-facts">
           <article>
-            <span>Listings</span>
+            <span>{{ t.listings }}</span>
             <strong>{{ proof.metrics.listing_count if proof.metrics.listing_count is not none else 'N/A' }}</strong>
           </article>
           <article>
-            <span>Followers</span>
+            <span>{{ t.followers }}</span>
             <strong>{{ proof.metrics.followers_count if proof.metrics.followers_count is not none else 'N/A' }}</strong>
           </article>
           <article>
-            <span>Following</span>
+            <span>{{ t.following }}</span>
             <strong>{{ proof.metrics.following_count if proof.metrics.following_count is not none else 'N/A' }}</strong>
           </article>
         </div>
@@ -120,23 +126,23 @@
         <strong>{{ proof_view.platform_label }}</strong>
       </article>
       <article class="panel metric-card">
-        <span>Total Reviews</span>
+        <span>{{ t.total_reviews }}</span>
         <strong>{{ proof.metrics.total_reviews if proof.metrics.total_reviews is not none else 'N/A' }}</strong>
       </article>
       <article class="panel metric-card">
-        <span>Positive</span>
+        <span>{{ t.positive }}</span>
         <strong>{{ proof.metrics.positive_reviews if proof.metrics.positive_reviews is not none else 'N/A' }}</strong>
       </article>
       <article class="panel metric-card">
-        <span>Negative</span>
+        <span>{{ t.negative }}</span>
         <strong>{{ proof.metrics.negative_reviews if proof.metrics.negative_reviews is not none else 'N/A' }}</strong>
       </article>
       <article class="panel metric-card">
-        <span>Listings</span>
+        <span>{{ t.listings }}</span>
         <strong>{{ proof.metrics.listing_count if proof.metrics.listing_count is not none else 'N/A' }}</strong>
       </article>
       <article class="panel metric-card">
-        <span>Followers</span>
+        <span>{{ t.followers }}</span>
         <strong>{{ proof.metrics.followers_count if proof.metrics.followers_count is not none else 'N/A' }}</strong>
       </article>
     </section>
@@ -145,8 +151,8 @@
       <article class="panel narrative-card">
         <div class="section-head">
           <div>
-            <p class="eyebrow">Seller Signals</p>
-            <h2>Main Inventory Types</h2>
+            <p class="eyebrow">{{ t.seller_signals }}</p>
+            <h2>{{ t.main_inventory_types }}</h2>
           </div>
         </div>
 
@@ -156,7 +162,7 @@
           {% endfor %}
         </div>
 
-        <h3>Representative Items</h3>
+        <h3>{{ t.representative_items }}</h3>
         {% if proof_view.sample_items %}
         <ul class="item-list">
           {% for item in proof_view.sample_items %}
@@ -164,34 +170,34 @@
           {% endfor %}
         </ul>
         {% else %}
-        <p class="muted">No representative item names were captured.</p>
+        <p class="muted">{{ t.no_items }}</p>
         {% endif %}
       </article>
 
       <article class="panel evidence-card">
         <div class="section-head">
           <div>
-            <p class="eyebrow">Evidence</p>
-            <h2>Capture Metadata</h2>
+            <p class="eyebrow">{{ t.evidence }}</p>
+            <h2>{{ t.capture_metadata }}</h2>
           </div>
         </div>
 
         <dl class="detail-list">
-          <div><dt>Captured At</dt><dd>{{ proof.captured_at }}</dd></div>
-          <div><dt>Expires At</dt><dd>{{ proof.expires_at }}</dd></div>
-          <div><dt>Parser Version</dt><dd>{{ proof.evidence.parser_version }}</dd></div>
-          <div><dt>Extractor Strategy</dt><dd>{{ proof.evidence.extractor_strategy }}</dd></div>
-          <div><dt>Status</dt><dd>{{ proof.status }}</dd></div>
+          <div><dt>{{ t.captured_at_label }}</dt><dd>{{ proof.captured_at }}</dd></div>
+          <div><dt>{{ t.expires_at_label }}</dt><dd>{{ proof.expires_at }}</dd></div>
+          <div><dt>{{ t.parser_version_label }}</dt><dd>{{ proof.evidence.parser_version }}</dd></div>
+          <div><dt>{{ t.extractor_strategy_label }}</dt><dd>{{ proof.evidence.extractor_strategy }}</dd></div>
+          <div><dt>{{ t.status_label }}</dt><dd>{{ proof.status }}</dd></div>
         </dl>
 
         <details class="technical-block">
-          <summary>Technical Proof Details</summary>
+          <summary>{{ t.technical_details }}</summary>
           <dl class="detail-list technical-list">
-            <div><dt>Proof SHA-256</dt><dd class="hash">{{ proof.proof_sha256 }}</dd></div>
-            <div><dt>HTML SHA-256</dt><dd class="hash">{{ proof.evidence.raw_html_sha256 }}</dd></div>
-            <div><dt>Text SHA-256</dt><dd class="hash">{{ proof.evidence.visible_text_sha256 }}</dd></div>
-            <div><dt>Screenshot SHA-256</dt><dd class="hash">{{ proof.evidence.screenshot_sha256 }}</dd></div>
-            <div><dt>Signature</dt><dd class="hash">{{ proof.signature }}</dd></div>
+            <div><dt>{{ t.label_proof_sha256 }}</dt><dd class="hash">{{ proof.proof_sha256 }}</dd></div>
+            <div><dt>{{ t.label_html_sha256 }}</dt><dd class="hash">{{ proof.evidence.raw_html_sha256 }}</dd></div>
+            <div><dt>{{ t.label_text_sha256 }}</dt><dd class="hash">{{ proof.evidence.visible_text_sha256 }}</dd></div>
+            <div><dt>{{ t.label_screenshot_sha256 }}</dt><dd class="hash">{{ proof.evidence.screenshot_sha256 }}</dd></div>
+            <div><dt>{{ t.label_signature }}</dt><dd class="hash">{{ proof.signature }}</dd></div>
           </dl>
         </details>
       </article>
@@ -199,7 +205,7 @@
 
     <section class="panel technical-panel">
       <details class="json-block">
-        <summary>Proof JSON</summary>
+        <summary>{{ t.label_proof_json }}</summary>
         <pre class="result-json">{{ proof_json }}</pre>
       </details>
     </section>
