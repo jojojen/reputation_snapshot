@@ -372,12 +372,63 @@ body {
 .distribution-positive {
   display: block;
   background: linear-gradient(90deg, #2a9d72, #65bc8a);
+  min-width: 0;
 }
 
 .distribution-negative {
   display: block;
   background: linear-gradient(90deg, #d68e62, #b04a39);
+  min-width: 0;
 }
+
+.distribution-norecord {
+  display: block;
+  flex: 1;
+  background: rgba(29, 36, 44, 0.14);
+}
+
+.rated-callout {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rated-pct {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--good);
+  line-height: 1;
+}
+
+.rated-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.review-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-positive .legend-dot { background: #2a9d72; }
+.legend-negative .legend-dot { background: #b04a39; }
+.legend-norecord .legend-dot { background: rgba(29, 36, 44, 0.28); }
 
 .distribution-meta {
   grid-template-columns: repeat(2, minmax(0, 1fr));

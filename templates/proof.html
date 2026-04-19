@@ -64,13 +64,31 @@
           </div>
 
           {% if proof_view.review_breakdown_available %}
+          {% if proof_view.rated_positive_pct is not none %}
+          <div class="rated-callout">
+            <span class="rated-pct">{{ proof_view.rated_positive_pct }}%</span>
+            <span class="rated-label">positive among {{ proof_view.rated_total }} rated</span>
+          </div>
+          {% endif %}
+
           <div class="distribution-track">
             <span class="distribution-positive" style="width: {{ proof_view.positive_ratio or 0 }}%"></span>
             <span class="distribution-negative" style="width: {{ proof_view.negative_ratio or 0 }}%"></span>
+            <span class="distribution-norecord"></span>
           </div>
-          <div class="distribution-meta">
-            <span>Positive {{ proof.metrics.positive_reviews if proof.metrics.positive_reviews is not none else 'N/A' }}</span>
-            <span>Negative {{ proof.metrics.negative_reviews if proof.metrics.negative_reviews is not none else 'N/A' }}</span>
+          <div class="review-legend">
+            <span class="legend-item legend-positive">
+              <span class="legend-dot"></span>
+              {{ proof.metrics.positive_reviews or 0 }} positive
+            </span>
+            <span class="legend-item legend-negative">
+              <span class="legend-dot"></span>
+              {{ proof.metrics.negative_reviews or 0 }} negative
+            </span>
+            <span class="legend-item legend-norecord">
+              <span class="legend-dot"></span>
+              {{ proof_view.no_record_count }} no rating
+            </span>
           </div>
           {% else %}
           <p class="muted">Positive / negative review counts were not exposed on the captured public page.</p>

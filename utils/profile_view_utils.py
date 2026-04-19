@@ -38,7 +38,9 @@ def build_proof_view(proof: dict[str, Any]) -> dict[str, Any]:
     total_reviews = metrics.get("total_reviews")
     positive_reviews = metrics.get("positive_reviews")
     negative_reviews = metrics.get("negative_reviews")
-    positive_ratio, negative_ratio = _review_ratios(total_reviews, positive_reviews, negative_reviews)
+    positive_ratio, negative_ratio, no_record_ratio, no_record_count, rated_total, rated_positive_pct = _review_ratios(
+        total_reviews, positive_reviews, negative_reviews
+    )
 
     return {
         "platform_label": PLATFORM_LABELS.get(proof.get("source_platform"), proof.get("source_platform", "Unknown Platform")),
@@ -50,6 +52,10 @@ def build_proof_view(proof: dict[str, Any]) -> dict[str, Any]:
         "negative_reviews": negative_reviews,
         "positive_ratio": positive_ratio,
         "negative_ratio": negative_ratio,
+        "no_record_ratio": no_record_ratio,
+        "no_record_count": no_record_count,
+        "rated_total": rated_total,
+        "rated_positive_pct": rated_positive_pct,
         "primary_categories": infer_primary_categories(sample_items, signals.get("bio_excerpt")),
         "sample_items": sample_items[:8],
         "seller_initial": _seller_initial(subject.get("display_name")),
@@ -78,20 +84,25 @@ def _review_ratios(
     total_reviews: int | None,
     positive_reviews: int | None,
     negative_reviews: int | None,
-) -> tuple[int | None, int | None]:
+) -> tuple:
     if positive_reviews is None and negative_reviews is None:
-        return None, None
+        return None, None, None, None, None, None
 
-    review_total = total_reviews
-    if review_total is None and positive_reviews is not None and negative_reviews is not None:
-        review_total = positive_reviews + negative_reviews
+    pos = positive_reviews or 0
+    neg = negative_reviews or 0
+    rated_total = pos + neg
 
+    review_total = total_reviews if total_reviews is not None else rated_total
     if not review_total:
-        return None, None
+        return None, None, None, None, None, None
 
-    positive_ratio = round(((positive_reviews or 0) / review_total) * 100)
-    negative_ratio = round(((negative_reviews or 0) / review_total) * 100)
-    return positive_ratio, negative_ratio
+    no_record_count = max(0, review_total - rated_total)
+    positive_ratio = round(pos / review_total * 100)
+    negative_ratio = round(neg / review_total * 100)
+    no_record_ratio = 100 - positive_ratio - negative_ratio
+    rated_positive_pct = round(pos / rated_total * 100) if rated_total else None
+
+    return positive_ratio, negative_ratio, no_record_ratio, no_record_count, rated_total, rated_positive_pct
 
 
 def _seller_initial(display_name: str | None) -> str:
