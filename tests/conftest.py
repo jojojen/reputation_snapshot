@@ -25,6 +25,7 @@ def clean_database() -> None:
     init_db()
     ensure_keypair()
     with get_db_connection() as connection:
+        connection.execute("DELETE FROM capture_jobs")
         connection.execute("DELETE FROM query_events")
         connection.execute("DELETE FROM parser_runs")
         connection.execute("DELETE FROM review_entries")

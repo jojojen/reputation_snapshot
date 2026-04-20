@@ -319,6 +319,54 @@ def insert_query_event(data: dict[str, Any]) -> None:
         connection.commit()
 
 
+def create_capture_job(job_id: str, query_url: str) -> None:
+    with get_db_connection() as connection:
+        connection.execute(
+            "INSERT INTO capture_jobs (id, query_url, status, created_at) VALUES (?, ?, 'pending', ?)",
+            (job_id, query_url, now_jst_iso()),
+        )
+        connection.commit()
+
+
+def get_capture_job(job_id: str) -> dict[str, Any] | None:
+    with get_db_connection() as connection:
+        row = connection.execute("SELECT * FROM capture_jobs WHERE id = ?", (job_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def claim_next_capture_job() -> dict[str, Any] | None:
+    with get_db_connection() as connection:
+        row = connection.execute(
+            "SELECT * FROM capture_jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        connection.execute(
+            "UPDATE capture_jobs SET status = 'processing', claimed_at = ? WHERE id = ?",
+            (now_jst_iso(), row["id"]),
+        )
+        connection.commit()
+    return dict(row)
+
+
+def complete_capture_job(job_id: str, proof_id: str, capture_id: str) -> None:
+    with get_db_connection() as connection:
+        connection.execute(
+            "UPDATE capture_jobs SET status = 'done', proof_id = ?, capture_id = ?, completed_at = ? WHERE id = ?",
+            (proof_id, capture_id, now_jst_iso(), job_id),
+        )
+        connection.commit()
+
+
+def fail_capture_job(job_id: str, error: str) -> None:
+    with get_db_connection() as connection:
+        connection.execute(
+            "UPDATE capture_jobs SET status = 'failed', error = ?, completed_at = ? WHERE id = ?",
+            (error, now_jst_iso(), job_id),
+        )
+        connection.commit()
+
+
 def get_admin_stats() -> dict[str, Any]:
     week_ago = _days_ago(7)
     two_weeks_ago = _days_ago(14)

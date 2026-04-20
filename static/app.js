@@ -55,6 +55,23 @@ function redirectToProof(proofUrl) {
   }, 700);
 }
 
+async function pollJob(jobId) {
+  const maxWait = 5 * 60 * 1000; // 5 minutes
+  const interval = 4000;
+  const started = Date.now();
+
+  while (Date.now() - started < maxWait) {
+    await new Promise((r) => window.setTimeout(r, interval));
+    const resp = await fetch(`/api/jobs/${jobId}`);
+    const data = await resp.json();
+
+    if (data.status === "done") return data;
+    if (data.status === "failed") throw new Error(data.error || "Capture failed.");
+    // still pending/processing — keep polling
+  }
+  throw new Error("Timed out waiting for capture agent. Is it running?");
+}
+
 form?.addEventListener("submit", async (event) => {
   event.preventDefault();
   setStatus("loading", i18n.js_loading || "Loading\u2026");
@@ -80,19 +97,25 @@ form?.addEventListener("submit", async (event) => {
       throw new Error(data.error || "Capture failed.");
     }
 
-    clearProgressTimers();
-    renderActions(data);
-
-    const name = data.display_name || "?";
+    // Immediate reuse — no job needed
     if (data.reused) {
+      clearProgressTimers();
+      renderActions(data);
       setStatus("success", i18n.js_found_label || "Found");
-      resultMessage.textContent = (i18n.js_reused_message || "Existing snapshot found for {name}. Redirecting\u2026").replace("{name}", name);
-    } else {
-      setStatus("success", i18n.js_created_label || "Created");
-      resultMessage.textContent = (i18n.js_created_message || "Snapshot created for {name}. Redirecting\u2026").replace("{name}", name);
+      resultMessage.textContent = i18n.js_reused_message || "Existing snapshot found. Redirecting\u2026";
+      redirectToProof(data.proof_url);
+      return;
     }
 
-    redirectToProof(data.proof_url);
+    // Job queued — poll until agent completes it
+    resultMessage.textContent = i18n.js_queued_message || "Queued — waiting for capture agent\u2026";
+    const result = await pollJob(data.job_id);
+
+    clearProgressTimers();
+    renderActions(result);
+    setStatus("success", i18n.js_created_label || "Created");
+    resultMessage.textContent = i18n.js_created_message || "Snapshot created. Redirecting\u2026";
+    redirectToProof(result.proof_url);
   } catch (error) {
     clearProgressTimers();
     setStatus("error", i18n.js_error_label || "Error");

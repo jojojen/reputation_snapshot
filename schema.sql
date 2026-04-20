@@ -81,3 +81,16 @@ CREATE TABLE IF NOT EXISTS query_events (
 CREATE INDEX IF NOT EXISTS idx_qe_queried_at  ON query_events(queried_at DESC);
 CREATE INDEX IF NOT EXISTS idx_qe_profile_url ON query_events(profile_url);
 CREATE INDEX IF NOT EXISTS idx_qe_category    ON query_events(primary_category);
+
+CREATE TABLE IF NOT EXISTS capture_jobs (
+    id          TEXT PRIMARY KEY,
+    query_url   TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    proof_id    TEXT,
+    capture_id  TEXT,
+    error       TEXT,
+    created_at  TEXT NOT NULL,
+    claimed_at  TEXT,
+    completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON capture_jobs(status, created_at);

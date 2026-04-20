@@ -1,9 +1,21 @@
 from __future__ import annotations
 
+import os
 import re
 import uuid
 from html import unescape
 from typing import Any
+
+# Persist browser cookies across requests so Mercari sees a returning user
+_BROWSER_STATE_PATH = os.path.join(
+    "/data" if os.path.isdir("/data") else os.path.join(os.path.dirname(__file__), "..", "captures"),
+    "browser_state.json",
+)
+
+try:
+    from playwright_stealth import stealth_sync as _apply_stealth
+except ImportError:
+    _apply_stealth = None
 
 from services.storage_service import save_raw_html, save_screenshot, save_visible_text
 from utils.db_utils import now_jst_iso
@@ -132,10 +144,18 @@ def extract_item_seller_context(raw_html: str, visible_text: str) -> dict[str, A
         if href_match:
             context["profile_url"] = build_absolute_mercari_url(unescape(href_match.group(1)))
 
+    # Broader fallback: catch profile IDs embedded in JSON, script tags, or any attribute
+    if context["profile_url"] is None:
+        any_match = re.search(r'["\x27](/user/profile/([A-Za-z0-9_-]+))["\x27]', raw_html)
+        if any_match:
+            context["profile_url"] = build_absolute_mercari_url(unescape(any_match.group(1)))
+
     return context
 
 
 def _capture_page(page: Any, url: str, take_screenshot: bool = False) -> dict[str, Any]:
+    if _apply_stealth is not None:
+        _apply_stealth(page)
     response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
     page.wait_for_selector("body", timeout=15000)
     page.wait_for_timeout(3000)
@@ -267,11 +287,47 @@ def _mercari_browser_context():
     class _BrowserContextManager:
         def __enter__(self):
             self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=True)
-            self.context = self.browser.new_context(locale="ja-JP", viewport={"width": 1440, "height": 2200})
+            proxy_server = os.getenv("PLAYWRIGHT_PROXY_SERVER")
+            launch_kwargs: dict = {
+                "headless": True,
+                "args": [
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                ],
+            }
+            if proxy_server:
+                launch_kwargs["proxy"] = {
+                    "server": proxy_server,
+                    "username": os.getenv("PLAYWRIGHT_PROXY_USER", ""),
+                    "password": os.getenv("PLAYWRIGHT_PROXY_PASS", ""),
+                }
+            self.browser = self.playwright.chromium.launch(**launch_kwargs)
+            state = _BROWSER_STATE_PATH if os.path.exists(_BROWSER_STATE_PATH) else None
+            self.context = self.browser.new_context(
+                locale="ja-JP",
+                viewport={"width": 1440, "height": 2200},
+                storage_state=state,
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                extra_http_headers={
+                    "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                },
+            )
+            self.context.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
             return self.context
 
         def __exit__(self, exc_type, exc, tb):
+            try:
+                self.context.storage_state(path=_BROWSER_STATE_PATH)
+            except Exception:
+                pass
             self.context.close()
             self.browser.close()
             self.playwright.stop()
