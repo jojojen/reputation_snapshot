@@ -170,11 +170,9 @@ def find_latest_reusable_proof_by_source_url(source_url: str) -> dict[str, Any] 
         return None
     result = dict(row)
     try:
-        payload = json.loads(result.pop("proof_payload_json"))
-        result["latest_review_hash"] = (payload.get("quality") or {}).get("latest_review_hash")
-    except Exception:
         result.pop("proof_payload_json", None)
-        result["latest_review_hash"] = None
+    except Exception:
+        pass
     return result
 
 

@@ -53,6 +53,23 @@ NOISE_TOKENS = (
 )
 
 
+def parse_review_summary_counts(visible_text: str) -> tuple[int, int]:
+    """Return (good_count, bad_count) from the review page header summary lines."""
+    good, bad = 0, 0
+    for line in visible_text.splitlines():
+        if not good:
+            m = _GOOD_COUNT_RE.search(line)
+            if m:
+                good = int(m.group(1))
+        if not bad:
+            m = _BAD_COUNT_RE.search(line)
+            if m:
+                bad = int(m.group(1))
+        if good and bad:
+            break
+    return good, bad
+
+
 def parse_review_entries(
     review_raw_html: str | None = None,
     review_visible_text: str | None = None,

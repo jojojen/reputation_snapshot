@@ -3,7 +3,7 @@ from __future__ import annotations
 import app as app_module
 
 from services.proof_service import build_proof
-from services.storage_service import insert_capture, insert_proof
+from services.storage_service import insert_capture, insert_proof, insert_review_entries
 from utils.hash_utils import sha256_text
 from utils.json_utils import pretty_json
 
@@ -168,11 +168,12 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         }
     )
 
-    # Include fake review entries so the proof has a latest_review_hash
+    # Insert review entries so get_latest_review_entry_hash() finds them
     fake_review_entries = [
         {"role": "seller", "rating": "positive", "body_excerpt": "ありがとうございました", "entry_order": 1},
         {"role": "buyer", "rating": "positive", "body_excerpt": "良い商品でした", "entry_order": 2},
     ]
+    insert_review_entries(capture_id, PROFILE_URL, fake_review_entries, capture_data["captured_at"])
     proof_bundle = build_proof(PROFILE_URL, capture_data, parsed_data, review_entries=fake_review_entries)
     insert_proof(
         {
@@ -204,9 +205,8 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
     def fake_capture_profile(profile_url: str):
         raise AssertionError(f"capture_profile should not run for an existing snapshot: {profile_url}")
 
-    # Return the same review text so the hash matches → no new reviews → reuse
-    # "購入者" reviewer → role="seller" (new role semantics), matching fake_review_entries[0]
-    REUSE_REVIEW_TEXT = "ありがとうございました\n購入者\nありがとうございました\n2026/04"
+    # "購入者" → role="seller", body="ありがとうございました" → matches stored entry_order=1 hash → reuse
+    REUSE_REVIEW_TEXT = "購入者\nありがとうございました\n2026/04"
 
     def fake_capture_lookup_page(url: str) -> dict:
         return {"raw_html": "", "visible_text": REUSE_REVIEW_TEXT}

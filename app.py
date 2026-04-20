@@ -10,6 +10,7 @@ from services.proof_service import build_proof
 from services.analysis_service import build_timeline
 from services.storage_service import (
     find_latest_reusable_proof_by_source_url,
+    get_latest_review_entry_hash,
     get_proof,
     get_proof_document,
     get_proofs_by_source_url,
@@ -74,7 +75,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
 
             reusable_proof = find_latest_reusable_proof_by_source_url(profile_url)
             if reusable_proof is not None:
-                if not _has_new_reviews(reusable_proof.get("latest_review_hash"), reviews_url):
+                if not _has_new_reviews(profile_url, reviews_url):
                     return jsonify(
                         {
                             "capture_id": reusable_proof["capture_id"],
@@ -220,10 +221,11 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     return app
 
 
-def _has_new_reviews(stored_hash: str | None, reviews_url: str) -> bool:
-    """Returns True if a new review is detected on the live reviews page."""
-    if not stored_hash:
-        # No stored hash means the previous proof has no quality data; force re-capture.
+def _has_new_reviews(source_url: str, reviews_url: str) -> bool:
+    """Returns True if the latest live review differs from what is stored in the DB."""
+    stored_hash = get_latest_review_entry_hash(source_url)
+    if stored_hash is None:
+        # No review entries stored yet — force re-capture.
         return True
     try:
         capture = capture_lookup_page(reviews_url)
