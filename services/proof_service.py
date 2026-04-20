@@ -26,7 +26,11 @@ def build_proof(
     normalized_url = normalize_mercari_profile_url(source_url)
     captured_at = capture_data.get("captured_at") or now_jst_iso()
     expires_at = _calculate_expiry(captured_at, expires_in_days)
-    quality = _compute_quality(review_entries or [])
+    quality = _compute_quality(
+        review_entries or [],
+        positive_reviews=parsed_data.get("positive_reviews"),
+        negative_reviews=parsed_data.get("negative_reviews"),
+    )
 
     payload = {
         "proof_id": proof_id,
@@ -82,8 +86,13 @@ def build_proof(
     }
 
 
-def _compute_quality(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
-    if not entries:
+def _compute_quality(
+    entries: list[dict[str, Any]],
+    positive_reviews: int | None = None,
+    negative_reviews: int | None = None,
+) -> dict[str, Any] | None:
+    has_cumulative = positive_reviews is not None or negative_reviews is not None
+    if not entries and not has_cumulative:
         return None
 
     def _stats(subset: list[dict]) -> dict[str, Any] | None:
@@ -100,20 +109,34 @@ def _compute_quality(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
 
     seller_entries = [e for e in entries if e["role"] == "seller"]
     buyer_entries = [e for e in entries if e["role"] == "buyer"]
-    # Synthetic "unknown" entries are used for overall rate accuracy but excluded from role stats
     real_entries = [e for e in entries if e["role"] != "unknown"]
 
-    first = real_entries[0] if real_entries else entries[0]
-    body = first.get("body_excerpt") or ""
-    latest_hash = sha256_text(f"{first['role']}|{first['rating']}|{body}")
+    # Overall rate uses cumulative metrics (all historical records), not just captured entries
+    if has_cumulative:
+        cum_pos = positive_reviews or 0
+        cum_neg = negative_reviews or 0
+        cum_total = cum_pos + cum_neg
+        overall = {
+            "positive": cum_pos,
+            "negative": cum_neg,
+            "rate": round(cum_pos / cum_total * 100, 1) if cum_total > 0 else None,
+        }
+    else:
+        overall = _stats(entries)
 
-    return {
-        "overall": _stats(entries),
+    result: dict[str, Any] = {
+        "overall": overall,
         "as_seller": _stats(seller_entries),
         "as_buyer": _stats(buyer_entries),
         "entry_count": len(real_entries),
-        "latest_review_hash": latest_hash,
     }
+
+    if real_entries or entries:
+        first = real_entries[0] if real_entries else entries[0]
+        body = first.get("body_excerpt") or ""
+        result["latest_review_hash"] = sha256_text(f"{first['role']}|{first['rating']}|{body}")
+
+    return result
 
 
 def _calculate_expiry(captured_at: str, expires_in_days: int) -> str:

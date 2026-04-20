@@ -166,7 +166,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "signal_grade_drop": "\u7b49\u7d1a\u5f9e {old} \u9000\u6b65\u5230 {new}",
         "signal_follower_drop": "\u8ffd\u8e64\u8005\u6bd4\u4e0a\u6b21\u5feb\u7167\u6e1b\u5c11\u4e86 {value}%",
         "quality_overview": "\u8a55\u50f9\u54c1\u8cea",
-        "quality_overall": "\u7d3c\u9ad4",
+        "quality_overall": "綜合",
         "quality_as_seller": "\u8eab\u70ba\u8ce3\u5bb6",
         "quality_as_buyer": "\u8eab\u70ba\u8cb7\u5bb6",
         "quality_reviews": "\u7b46\u8a55\u50f9",
