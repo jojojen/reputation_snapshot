@@ -91,6 +91,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             review_entries = parse_review_entries(
                 capture_data.get("review_raw_html"),
                 capture_data.get("review_visible_text"),
+                capture_data.get("review_bad_visible_text"),
             )
             parsed_data = parse_profile(
                 capture_data["raw_html"],

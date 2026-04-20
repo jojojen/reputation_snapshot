@@ -51,6 +51,7 @@ def capture_profile(profile_url: str) -> dict[str, Any]:
         "review_url": reviews_url if review_capture.get("http_status") == 200 else None,
         "review_raw_html": review_capture.get("raw_html"),
         "review_visible_text": review_capture.get("visible_text"),
+        "review_bad_visible_text": review_capture.get("bad_visible_text"),
         "review_http_status": review_capture.get("http_status"),
     }
 
@@ -162,7 +163,24 @@ def _capture_optional_review_page(context: Any, reviews_url: str) -> dict[str, A
         capture = _capture_page(review_page, reviews_url, take_screenshot=False)
         if capture["http_status"] >= 400:
             return {"http_status": capture["http_status"]}
-        return capture
+        good_html = capture["raw_html"]
+        good_text = capture["visible_text"]
+        # Also capture the bad (残念だった) tab by clicking it
+        bad_text = ""
+        try:
+            bad_btn = review_page.query_selector('[aria-controls="bad"]')
+            if bad_btn:
+                bad_btn.click()
+                review_page.wait_for_timeout(2000)
+                bad_text = review_page.evaluate("() => document.body ? document.body.innerText : ''")
+        except Exception:
+            pass
+        return {
+            "raw_html": good_html,
+            "visible_text": good_text,
+            "bad_visible_text": bad_text,
+            "http_status": capture["http_status"],
+        }
     except Exception:
         return {"http_status": None}
     finally:

@@ -56,42 +56,55 @@ NOISE_TOKENS = (
 def parse_review_entries(
     review_raw_html: str | None = None,
     review_visible_text: str | None = None,
+    review_bad_visible_text: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Parse individual review entries (role + rating) from the reviews page."""
-    if not review_visible_text and not review_raw_html:
+    """Parse individual review entries (role + rating) from the reviews page.
+
+    The default good-tab text gives all positive entries.
+    The bad-tab text (if available) gives negative entries with role info.
+    If bad-tab text is absent, synthetic negative entries are injected from
+    the summary count so that the overall quality rate remains accurate.
+    """
+    if not review_visible_text and not review_raw_html and not review_bad_visible_text:
         return []
-    text = review_visible_text or _clean_html_fragment(review_raw_html or "")
-    return _parse_reviews_from_text(text)
+
+    good_text = review_visible_text or _clean_html_fragment(review_raw_html or "")
+    good_entries = _parse_reviews_from_text(good_text, default_rating="positive") if good_text else []
+
+    if review_bad_visible_text:
+        bad_entries = _parse_reviews_from_text(review_bad_visible_text, default_rating="negative")
+    else:
+        # Fall back: inject synthetic negatives from the good-tab summary count
+        bad_count = _extract_summary_bad_count(good_text) if good_text else 0
+        bad_entries = [
+            {"role": "unknown", "rating": "negative", "body_excerpt": None, "entry_order": 0}
+            for _ in range(min(bad_count, max(0, 100 - len(good_entries))))
+        ]
+
+    all_entries = good_entries + bad_entries
+    for idx, entry in enumerate(all_entries):
+        entry["entry_order"] = idx + 1
+    return all_entries
 
 
-def _parse_reviews_from_text(visible_text: str) -> list[dict[str, Any]]:
-    """Parse Mercari review page text.
+def _extract_summary_bad_count(visible_text: str) -> int:
+    for line in visible_text.splitlines():
+        m = _BAD_COUNT_RE.search(line)
+        if m:
+            return int(m.group(1))
+    return 0
 
-    The reviews page shows entries from the 良かった (good) tab by default.
-    Each entry ends with a YYYY/MM date line. Summary counts at the top
-    ("良かった (N)" / "残念だった (N)") are used to inject negative entries
-    so that the overall quality rate is accurate.
+
+def _parse_reviews_from_text(visible_text: str, default_rating: str = "positive") -> list[dict[str, Any]]:
+    """Parse Mercari review page text anchored on YYYY/MM date lines.
+
+    Role semantics: the role badge belongs to the REVIEWER, not the profile owner.
+    "購入者" (buyer reviewer) → profile owner acted as seller → role="seller"
+    "出品者" (seller reviewer) → profile owner acted as buyer → role="buyer"
     """
     lines = [re.sub(r"\s+", " ", ln).strip() for ln in visible_text.splitlines()]
     lines = [ln for ln in lines if ln]
 
-    # Extract summary counts from header (only the first occurrence of each)
-    good_count: int | None = None
-    bad_count: int | None = None
-    for line in lines:
-        if good_count is None:
-            m = _GOOD_COUNT_RE.search(line)
-            if m:
-                good_count = int(m.group(1))
-        if bad_count is None:
-            m = _BAD_COUNT_RE.search(line)
-            if m:
-                bad_count = int(m.group(1))
-        if good_count is not None and bad_count is not None:
-            break
-
-    # Parse individual entries anchored on YYYY/MM date lines.
-    # The page shows only the good-tab entries, so rating = positive for all.
     entries: list[dict[str, Any]] = []
     for i, line in enumerate(lines):
         if len(entries) >= 100:
@@ -103,11 +116,13 @@ def _parse_reviews_from_text(visible_text: str) -> list[dict[str, Any]]:
         role: str | None = None
         role_idx = -1
         for j in range(i - 1, max(-1, i - 7), -1):
-            if any(t in lines[j] for t in _SELLER_TOKENS):
+            # "購入者" = reviewer was buyer → profile owner was seller
+            if any(t in lines[j] for t in _BUYER_TOKENS):
                 role = "seller"
                 role_idx = j
                 break
-            if any(t in lines[j] for t in _BUYER_TOKENS):
+            # "出品者" = reviewer was seller → profile owner was buyer
+            if any(t in lines[j] for t in _SELLER_TOKENS):
                 role = "buyer"
                 role_idx = j
                 break
@@ -115,7 +130,6 @@ def _parse_reviews_from_text(visible_text: str) -> list[dict[str, Any]]:
         if role is None:
             continue
 
-        # Collect text between the role line and the date line
         body_parts = [
             ln for ln in lines[role_idx + 1:i]
             if ln not in _SKIP_LINES and not _REVIEW_DATE_RE.match(ln)
@@ -124,21 +138,10 @@ def _parse_reviews_from_text(visible_text: str) -> list[dict[str, Any]]:
 
         entries.append({
             "role": role,
-            "rating": "positive",
+            "rating": default_rating,
             "body_excerpt": body_excerpt,
             "entry_order": len(entries) + 1,
         })
-
-    # Inject synthetic negative entries from the summary count so that
-    # overall quality rate reflects the true good/bad ratio.
-    if bad_count and bad_count > 0 and entries:
-        for _ in range(min(bad_count, 100 - len(entries))):
-            entries.append({
-                "role": "unknown",
-                "rating": "negative",
-                "body_excerpt": None,
-                "entry_order": len(entries) + 1,
-            })
 
     return entries
 

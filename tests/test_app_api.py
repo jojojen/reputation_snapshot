@@ -205,7 +205,8 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         raise AssertionError(f"capture_profile should not run for an existing snapshot: {profile_url}")
 
     # Return the same review text so the hash matches → no new reviews → reuse
-    REUSE_REVIEW_TEXT = "ありがとうございました\n出品者\nありがとうございました\n2026/04"
+    # "購入者" reviewer → role="seller" (new role semantics), matching fake_review_entries[0]
+    REUSE_REVIEW_TEXT = "ありがとうございました\n購入者\nありがとうございました\n2026/04"
 
     def fake_capture_lookup_page(url: str) -> dict:
         return {"raw_html": "", "visible_text": REUSE_REVIEW_TEXT}
