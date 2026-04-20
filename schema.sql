@@ -64,3 +64,20 @@ CREATE TABLE IF NOT EXISTS review_entries (
     FOREIGN KEY (capture_id) REFERENCES captures(id),
     UNIQUE (source_url, content_hash)
 );
+
+CREATE TABLE IF NOT EXISTS query_events (
+    id               TEXT PRIMARY KEY,
+    query_url        TEXT NOT NULL,
+    query_kind       TEXT,
+    profile_url      TEXT,
+    display_name     TEXT,
+    result           TEXT NOT NULL,
+    proof_id         TEXT,
+    capture_id       TEXT,
+    primary_category TEXT,
+    ip_address       TEXT,
+    queried_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_qe_queried_at  ON query_events(queried_at DESC);
+CREATE INDEX IF NOT EXISTS idx_qe_profile_url ON query_events(profile_url);
+CREATE INDEX IF NOT EXISTS idx_qe_category    ON query_events(primary_category);

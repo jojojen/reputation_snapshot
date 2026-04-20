@@ -20,6 +20,7 @@ class Settings:
     default_expires_days: int
     parser_version: str
     env: str
+    admin_token: str
 
 
 def project_path(*parts: str) -> Path:
@@ -54,6 +55,7 @@ def get_settings() -> Settings:
         default_expires_days=int(_get("DEFAULT_EXPIRES_DAYS", "30")),
         parser_version=_get("PARSER_VERSION", "mercari_parser_v0"),
         env=_get("ENV", "local"),
+        admin_token=_get("ADMIN_TOKEN", "dev_admin"),
     )
 
 

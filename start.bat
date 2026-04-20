@@ -70,6 +70,14 @@ echo [OK] Keys generated.
 :keys_ok
 echo [OK] Keys ready.
 
+:: ---------- Read ADMIN_TOKEN from .env ----------
+set ADMIN_TOKEN=dev_admin
+if exist .env (
+    for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+        if /i "%%A"=="ADMIN_TOKEN" set ADMIN_TOKEN=%%B
+    )
+)
+
 :: ---------- Launch ----------
 echo.
 echo [OK] All checks passed. Starting server...
@@ -77,7 +85,11 @@ echo.
 start "Reputation Snapshot - Server" .venv\Scripts\python app.py
 timeout /t 2 /nobreak >nul
 start "" "http://127.0.0.1:5000"
-echo [OK] Server started. Browser opening at http://127.0.0.1:5000
+start "" "http://127.0.0.1:5000/admin?token=%ADMIN_TOKEN%"
+echo [OK] Server started.
+echo [OK] Browser opening:
+echo      Main : http://127.0.0.1:5000
+echo      Admin: http://127.0.0.1:5000/admin?token=%ADMIN_TOKEN%
 goto :done
 
 :err_python

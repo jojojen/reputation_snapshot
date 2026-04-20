@@ -287,6 +287,186 @@ def dump_proof_document(path: str | Path, proof_document: dict[str, Any]) -> Non
     Path(path).write_text(pretty_json(proof_document), encoding="utf-8")
 
 
+def get_capture_by_id(capture_id: str) -> dict[str, Any] | None:
+    with get_db_connection() as connection:
+        row = connection.execute("SELECT * FROM captures WHERE id = ?", (capture_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def insert_query_event(data: dict[str, Any]) -> None:
+    with get_db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO query_events
+                (id, query_url, query_kind, profile_url, display_name, result,
+                 proof_id, capture_id, primary_category, ip_address, queried_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                f"qe_{uuid.uuid4().hex[:12]}",
+                data["query_url"],
+                data.get("query_kind"),
+                data.get("profile_url"),
+                data.get("display_name"),
+                data["result"],
+                data.get("proof_id"),
+                data.get("capture_id"),
+                data.get("primary_category"),
+                data.get("ip_address"),
+                now_jst_iso(),
+            ),
+        )
+        connection.commit()
+
+
+def get_admin_stats() -> dict[str, Any]:
+    week_ago = _days_ago(7)
+    two_weeks_ago = _days_ago(14)
+
+    with get_db_connection() as conn:
+        summary = dict(
+            conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(DISTINCT profile_url) AS unique_sellers,
+                    SUM(CASE WHEN result = 'new_capture' THEN 1 ELSE 0 END) AS new_captures,
+                    SUM(CASE WHEN result = 'reused'      THEN 1 ELSE 0 END) AS reused,
+                    SUM(CASE WHEN queried_at >= ?         THEN 1 ELSE 0 END) AS last_7_days
+                FROM query_events
+                """,
+                (week_ago,),
+            ).fetchone()
+            or {}
+        )
+
+        raw_categories = conn.execute(
+            """
+            SELECT primary_category,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN queried_at >= ? THEN 1 ELSE 0 END) AS this_week,
+                   SUM(CASE WHEN queried_at >= ? AND queried_at < ? THEN 1 ELSE 0 END) AS last_week
+            FROM query_events
+            WHERE primary_category IS NOT NULL
+            GROUP BY primary_category
+            ORDER BY total DESC
+            LIMIT 12
+            """,
+            (week_ago, two_weeks_ago, week_ago),
+        ).fetchall()
+
+        raw_sellers = conn.execute(
+            """
+            SELECT profile_url, display_name, primary_category,
+                   COUNT(*) AS cnt, MAX(queried_at) AS last_queried
+            FROM query_events
+            WHERE profile_url IS NOT NULL
+            GROUP BY profile_url
+            ORDER BY cnt DESC
+            LIMIT 15
+            """,
+        ).fetchall()
+
+        raw_ip_cat = conn.execute(
+            """
+            SELECT ip_address, primary_category, COUNT(*) AS cnt
+            FROM query_events
+            WHERE ip_address IS NOT NULL AND ip_address != ''
+              AND primary_category IS NOT NULL
+            GROUP BY ip_address, primary_category
+            ORDER BY cnt DESC
+            LIMIT 300
+            """,
+        ).fetchall()
+
+        raw_samples = conn.execute(
+            """
+            SELECT c.sample_items_json, COUNT(*) AS query_cnt
+            FROM query_events qe
+            JOIN captures c ON c.id = qe.capture_id
+            WHERE qe.capture_id IS NOT NULL
+            GROUP BY qe.capture_id
+            """,
+        ).fetchall()
+
+        recent = conn.execute(
+            """
+            SELECT query_url, query_kind, display_name, primary_category,
+                   result, ip_address, queried_at
+            FROM query_events
+            ORDER BY queried_at DESC
+            LIMIT 50
+            """,
+        ).fetchall()
+
+    # Week-over-week change per category
+    top_categories = []
+    for row in raw_categories:
+        r = dict(row)
+        lw = r.get("last_week") or 0
+        tw = r.get("this_week") or 0
+        r["wow_change"] = round((tw - lw) / lw * 100) if lw > 0 else None
+        top_categories.append(r)
+
+    # Keyword aggregation from sample_items
+    keyword_counts: dict[str, int] = {}
+    for row in raw_samples:
+        try:
+            items = json.loads(row["sample_items_json"] or "[]")
+            for item in items:
+                kw = str(item).strip()
+                if kw:
+                    keyword_counts[kw] = keyword_counts.get(kw, 0) + int(row["query_cnt"])
+        except Exception:
+            pass
+    top_keywords = [
+        {"keyword": k, "count": c}
+        for k, c in sorted(keyword_counts.items(), key=lambda x: -x[1])[:20]
+    ]
+
+    # IP subnet aggregation (/24)
+    subnet_data: dict[str, dict[str, Any]] = {}
+    for row in raw_ip_cat:
+        subnet = _ip_to_subnet(row["ip_address"])
+        if subnet not in subnet_data:
+            subnet_data[subnet] = {"total": 0, "categories": {}}
+        subnet_data[subnet]["total"] += row["cnt"]
+        cats = subnet_data[subnet]["categories"]
+        cats[row["primary_category"]] = cats.get(row["primary_category"], 0) + row["cnt"]
+
+    ip_analysis = []
+    for subnet, data in sorted(subnet_data.items(), key=lambda x: -x[1]["total"])[:20]:
+        top_cat = max(data["categories"].items(), key=lambda x: x[1])
+        ip_analysis.append({
+            "subnet": subnet,
+            "total": data["total"],
+            "top_category": top_cat[0],
+            "categories": sorted(data["categories"].items(), key=lambda x: -x[1]),
+        })
+
+    return {
+        "summary": summary,
+        "top_categories": top_categories,
+        "top_sellers": [dict(r) for r in raw_sellers],
+        "top_keywords": top_keywords,
+        "ip_analysis": ip_analysis,
+        "recent_events": [dict(r) for r in recent],
+    }
+
+
+def _days_ago(n: int) -> str:
+    from datetime import datetime, timedelta, timezone
+    jst = timezone(timedelta(hours=9))
+    return (datetime.now(jst) - timedelta(days=n)).replace(microsecond=0).isoformat()
+
+
+def _ip_to_subnet(ip: str) -> str:
+    parts = ip.split(".")
+    if len(parts) == 4:
+        return ".".join(parts[:3]) + ".x"
+    return ip
+
+
 def _bool_to_db(value: bool | None) -> int | None:
     if value is None:
         return None

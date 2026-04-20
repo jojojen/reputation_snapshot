@@ -42,6 +42,8 @@ function renderActions(data) {
 
   const link = document.createElement("a");
   link.href = data.proof_url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
   link.textContent = i18n.js_proof_link || "If not redirected automatically, click here";
   link.className = "action-link";
   resultActions.appendChild(link);
@@ -49,7 +51,7 @@ function renderActions(data) {
 
 function redirectToProof(proofUrl) {
   window.setTimeout(() => {
-    window.location.assign(proofUrl);
+    window.open(proofUrl, "_blank", "noopener,noreferrer");
   }, 700);
 }
 

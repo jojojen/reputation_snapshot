@@ -10,6 +10,8 @@ from services.proof_service import build_proof
 from services.analysis_service import build_timeline
 from services.storage_service import (
     find_latest_reusable_proof_by_source_url,
+    get_admin_stats,
+    get_capture_by_id,
     get_latest_review_entry_hash,
     get_proof,
     get_proof_document,
@@ -17,6 +19,7 @@ from services.storage_service import (
     insert_capture,
     insert_parser_run,
     insert_proof,
+    insert_query_event,
     insert_review_entries,
     revoke_proof,
 )
@@ -25,7 +28,7 @@ from utils.db_utils import ensure_runtime_directories, get_settings, init_db
 from utils.hash_utils import sha256_text
 from utils.i18n import detect_lang, get_translations
 from utils.json_utils import pretty_json
-from utils.profile_view_utils import build_proof_view
+from utils.profile_view_utils import build_proof_view, infer_primary_categories
 from utils.url_utils import MERCARI_URL_ERROR, build_mercari_reviews_url, is_valid_mercari_url
 
 
@@ -36,6 +39,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         APP_HOST=settings.app_host,
         APP_PORT=settings.app_port,
         DEFAULT_EXPIRES_DAYS=settings.default_expires_days,
+        ADMIN_TOKEN=settings.admin_token,
         TESTING=False,
     )
     if test_config:
@@ -76,6 +80,11 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             reusable_proof = find_latest_reusable_proof_by_source_url(profile_url)
             if reusable_proof is not None:
                 if not _has_new_reviews(profile_url, reviews_url):
+                    _record_query_event(
+                        request, query_url, resolution,
+                        _capture_to_parsed_signals(get_capture_by_id(reusable_proof["capture_id"])),
+                        "reused", reusable_proof["proof_id"], reusable_proof["capture_id"],
+                    )
                     return jsonify(
                         {
                             "capture_id": reusable_proof["capture_id"],
@@ -150,6 +159,10 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
+        _record_query_event(
+            request, query_url, resolution, parsed_data,
+            "new_capture", proof_bundle["proof_id"], capture_data["capture_id"],
+        )
         return jsonify(
             {
                 "capture_id": capture_data["capture_id"],
@@ -188,6 +201,19 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         revoke_proof(proof_id, reason)
         return jsonify({"proof_id": proof_id, "status": "revoked", "reason": reason})
 
+    @app.get("/admin")
+    def admin_dashboard() -> Any:
+        token = request.args.get("token") or request.cookies.get("admin_token")
+        if not token or token != app.config["ADMIN_TOKEN"]:
+            return "Unauthorized", 401
+        stats = get_admin_stats()
+        max_cat = max((c["total"] for c in stats["top_categories"]), default=1)
+        max_kw = max((k["count"] for k in stats["top_keywords"]), default=1)
+        resp = make_response(render_template("admin.html", stats=stats, max_cat=max_cat, max_kw=max_kw))
+        if request.args.get("token") == app.config["ADMIN_TOKEN"]:
+            resp.set_cookie("admin_token", token, max_age=86400, httponly=True, samesite="Lax")
+        return resp
+
     @app.get("/p/<proof_id>")
     def proof_page(proof_id: str) -> tuple[str, int] | str:
         document = get_proof_document(proof_id)
@@ -219,6 +245,58 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         )
 
     return app
+
+
+def _get_client_ip(req: Any) -> str:
+    forwarded = req.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = req.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return req.remote_addr or ""
+
+
+def _capture_to_parsed_signals(capture: dict[str, Any] | None) -> dict[str, Any]:
+    if not capture:
+        return {}
+    import json as _json
+    try:
+        sample_items = _json.loads(capture.get("sample_items_json") or "[]")
+    except Exception:
+        sample_items = []
+    return {
+        "display_name": capture.get("display_name"),
+        "sample_items": sample_items,
+        "bio_excerpt": capture.get("bio_excerpt"),
+    }
+
+
+def _record_query_event(
+    req: Any,
+    query_url: str,
+    resolution: dict[str, Any],
+    parsed_data: dict[str, Any],
+    result: str,
+    proof_id: str | None,
+    capture_id: str | None,
+) -> None:
+    try:
+        sample_items = [str(i) for i in (parsed_data.get("sample_items") or [])]
+        categories = infer_primary_categories(sample_items, parsed_data.get("bio_excerpt"))
+        insert_query_event({
+            "query_url": query_url,
+            "query_kind": resolution.get("query_kind"),
+            "profile_url": resolution.get("profile_url"),
+            "display_name": parsed_data.get("display_name") or resolution.get("display_name"),
+            "result": result,
+            "proof_id": proof_id,
+            "capture_id": capture_id,
+            "primary_category": categories[0] if categories else None,
+            "ip_address": _get_client_ip(req),
+        })
+    except Exception:
+        pass
 
 
 def _has_new_reviews(source_url: str, reviews_url: str) -> bool:

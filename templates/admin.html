@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>市場情報 — Admin</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-body">
+
+<header class="admin-header">
+  <div class="admin-header-inner">
+    <div>
+      <h1 class="admin-title">市場情報ダッシュボード</h1>
+      <p class="admin-subtitle">查詢行為分析 · 商品流動性情報</p>
+    </div>
+    <a href="/" class="admin-back-link">← 回主頁</a>
+  </div>
+</header>
+
+<main class="admin-main">
+
+  {# ── Section 0: 總覽 ── #}
+  <section class="admin-section">
+    <div class="admin-stat-grid">
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{ stats.summary.total or 0 }}</div>
+        <div class="admin-stat-label">總查詢次數</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{ stats.summary.unique_sellers or 0 }}</div>
+        <div class="admin-stat-label">不重複店家</div>
+      </div>
+      <div class="admin-stat-card">
+        <div class="admin-stat-value">{{ stats.summary.last_7_days or 0 }}</div>
+        <div class="admin-stat-label">近 7 天查詢</div>
+      </div>
+      <div class="admin-stat-card">
+        {% set total = (stats.summary.total or 0) %}
+        {% set reused = (stats.summary.reused or 0) %}
+        {% set reuse_pct = ((reused / total * 100) | int) if total > 0 else 0 %}
+        <div class="admin-stat-value">{{ reuse_pct }}%</div>
+        <div class="admin-stat-label">快照複用率</div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Section 1: 商品類型熱度 ── #}
+  <section class="admin-section">
+    <h2 class="admin-section-title">商品類型熱度排行</h2>
+    <p class="admin-section-note">哪類商品被查詢最多 → 代表市場流動性高</p>
+    {% if stats.top_categories %}
+      <div class="admin-bar-chart">
+        {% for cat in stats.top_categories %}
+          {% set pct = ((cat.total / max_cat) * 100) | int %}
+          {% set tw = cat.this_week or 0 %}
+          {% set lw = cat.last_week or 0 %}
+          <div class="admin-bar-row">
+            <div class="admin-bar-label">{{ cat.primary_category }}</div>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill" style="width: {{ pct }}%"></div>
+            </div>
+            <div class="admin-bar-count">{{ cat.total }}</div>
+            <div class="admin-bar-wow
+              {%- if cat.wow_change is not none and cat.wow_change > 0 %} wow-up
+              {%- elif cat.wow_change is not none and cat.wow_change < 0 %} wow-down
+              {%- else %} wow-flat{%- endif %}">
+              {% if cat.wow_change is not none %}
+                {% if cat.wow_change > 0 %}↑ +{{ cat.wow_change }}%
+                {% elif cat.wow_change < 0 %}↓ {{ cat.wow_change }}%
+                {% else %}→ 持平{% endif %}
+              {% else %}—{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="admin-empty">尚無查詢紀錄</p>
+    {% endif %}
+  </section>
+
+  {# ── Section 2: 熱門店家 ── #}
+  <section class="admin-section">
+    <h2 class="admin-section-title">熱門店家排行 Top 15</h2>
+    <p class="admin-section-note">被重複查詢的店家 → 買家在追蹤，代表信譽需要驗證或流動性高</p>
+    {% if stats.top_sellers %}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>店家名</th>
+              <th>商品類型</th>
+              <th>查詢次數</th>
+              <th>最後查詢</th>
+              <th>Proof</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in stats.top_sellers %}
+            <tr>
+              <td class="admin-rank">{{ loop.index }}</td>
+              <td class="admin-seller-name">{{ s.display_name or '—' }}</td>
+              <td><span class="admin-cat-badge">{{ s.primary_category or '—' }}</span></td>
+              <td class="admin-count">{{ s.cnt }}</td>
+              <td class="admin-date">{{ (s.last_queried or '')[:10] }}</td>
+              <td>
+                {% if s.profile_url %}
+                  <a class="admin-link" href="{{ s.profile_url }}" target="_blank" rel="noopener">店家頁</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="admin-empty">尚無資料</p>
+    {% endif %}
+  </section>
+
+  {# ── Section 3: 商品關鍵字熱度 ── #}
+  <section class="admin-section">
+    <h2 class="admin-section-title">商品關鍵字熱度</h2>
+    <p class="admin-section-note">被查詢店家的具體商品標題 → 哪些單品正在被市場追蹤</p>
+    {% if stats.top_keywords %}
+      <div class="admin-bar-chart admin-kw-chart">
+        {% for kw in stats.top_keywords %}
+          {% set pct = ((kw.count / max_kw) * 100) | int %}
+          <div class="admin-bar-row">
+            <div class="admin-bar-label admin-kw-label" title="{{ kw.keyword }}">{{ kw.keyword }}</div>
+            <div class="admin-bar-track">
+              <div class="admin-bar-fill admin-bar-fill--kw" style="width: {{ pct }}%"></div>
+            </div>
+            <div class="admin-bar-count">{{ kw.count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="admin-empty">尚無資料（需有帶商品標題的快照）</p>
+    {% endif %}
+  </section>
+
+  {# ── Section 4: 地區 × 商品類型 ── #}
+  <section class="admin-section">
+    <h2 class="admin-section-title">地區查詢分佈</h2>
+    <p class="admin-section-note">哪個 IP 段在查哪類商品 → 可推斷地區買家偏好（以 /24 子網聚合）</p>
+    {% if stats.ip_analysis %}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>IP 子網</th>
+              <th>查詢次數</th>
+              <th>最感興趣類型</th>
+              <th>類型分佈</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in stats.ip_analysis %}
+            <tr>
+              <td class="admin-ip">{{ row.subnet }}</td>
+              <td class="admin-count">{{ row.total }}</td>
+              <td><span class="admin-cat-badge">{{ row.top_category }}</span></td>
+              <td class="admin-cat-dist">
+                {% for cat, cnt in row.categories[:4] %}
+                  <span class="admin-cat-chip">{{ cat }} ×{{ cnt }}</span>
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="admin-empty">尚無 IP 資料（公開部署後才有意義）</p>
+    {% endif %}
+  </section>
+
+  {# ── Section 5: 最近查詢紀錄 ── #}
+  <section class="admin-section">
+    <h2 class="admin-section-title">最近查詢紀錄（最新 50 筆）</h2>
+    {% if stats.recent_events %}
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-table--recent">
+          <thead>
+            <tr>
+              <th>時間</th>
+              <th>店家名</th>
+              <th>類型</th>
+              <th>商品分類</th>
+              <th>結果</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in stats.recent_events %}
+            <tr>
+              <td class="admin-date">{{ (e.queried_at or '')[:16].replace('T', ' ') }}</td>
+              <td class="admin-seller-name">{{ e.display_name or '—' }}</td>
+              <td class="admin-kind">{{ e.query_kind or '—' }}</td>
+              <td><span class="admin-cat-badge admin-cat-badge--sm">{{ e.primary_category or '—' }}</span></td>
+              <td>
+                <span class="admin-result-badge admin-result-badge--{{ e.result }}">
+                  {% if e.result == 'new_capture' %}新建{% elif e.result == 'reused' %}複用{% else %}{{ e.result }}{% endif %}
+                </span>
+              </td>
+              <td class="admin-ip">{{ e.ip_address or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="admin-empty">尚無查詢紀錄</p>
+    {% endif %}
+  </section>
+
+</main>
+</body>
+</html>
