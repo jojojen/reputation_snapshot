@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+instance/
+captures/
+tests/
+.env
+keys/
+*.db
+*.log
+backups/

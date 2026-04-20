@@ -1,0 +1,12 @@
+dbs:
+  - path: /data/app.db
+    replicas:
+      - type: s3
+        endpoint: https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com
+        bucket: $R2_BUCKET_NAME
+        path: db
+        access-key-id: $LITESTREAM_ACCESS_KEY_ID
+        secret-access-key: $LITESTREAM_SECRET_ACCESS_KEY
+        # Replicate every second; keep 7 days of snapshots
+        snapshot-interval: 24h
+        retention: 168h

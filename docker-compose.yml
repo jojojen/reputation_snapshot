@@ -1,0 +1,21 @@
+version: '3.8'
+
+# 本機開發 / 測試用
+# 生產環境用 Fly.io (fly deploy)
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "80:5000"
+    volumes:
+      - app_data:/data    # DB + 金鑰 + captures 全在這個 volume
+    environment:
+      DB_PATH: /data/app.db
+    env_file:
+      - .env
+
+volumes:
+  app_data:
+    driver: local
