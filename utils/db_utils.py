@@ -19,6 +19,7 @@ class Settings:
     db_path: str
     default_expires_days: int
     parser_version: str
+    env: str
 
 
 def project_path(*parts: str) -> Path:
@@ -52,6 +53,7 @@ def get_settings() -> Settings:
         db_path=_get("DB_PATH", "instance/app.db"),
         default_expires_days=int(_get("DEFAULT_EXPIRES_DAYS", "30")),
         parser_version=_get("PARSER_VERSION", "mercari_parser_v0"),
+        env=_get("ENV", "local"),
     )
 
 

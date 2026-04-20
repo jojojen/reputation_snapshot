@@ -59,7 +59,6 @@ def build_proof_view(proof: dict[str, Any]) -> dict[str, Any]:
         "primary_categories": infer_primary_categories(sample_items, signals.get("bio_excerpt")),
         "sample_items": sample_items[:8],
         "seller_initial": _seller_initial(subject.get("display_name")),
-        "score_headline": _score_headline(proof.get("score", {}).get("grade")),
     }
 
 
@@ -115,11 +114,3 @@ def _seller_initial(display_name: str | None) -> str:
     return stripped[:1].upper()
 
 
-def _score_headline(grade: Any) -> str:
-    grade_map = {
-        "A": "Outstanding public track record",
-        "B": "Strong public track record",
-        "C": "Moderate public track record",
-        "D": "Thin public track record",
-    }
-    return grade_map.get(str(grade), "Public signal strength")

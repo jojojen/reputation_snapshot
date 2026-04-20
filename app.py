@@ -4,24 +4,28 @@ from typing import Any
 
 from flask import Flask, jsonify, make_response, redirect, render_template, request
 
-from services.capture_service import capture_profile, resolve_profile_reference
-from services.parser_mercari import REQUIRED_FIELDS, parse_profile
+from services.capture_service import capture_profile, capture_lookup_page, resolve_profile_reference
+from services.parser_mercari import REQUIRED_FIELDS, parse_profile, parse_review_entries
 from services.proof_service import build_proof
+from services.analysis_service import build_timeline
 from services.storage_service import (
     find_latest_reusable_proof_by_source_url,
     get_proof,
     get_proof_document,
+    get_proofs_by_source_url,
     insert_capture,
     insert_parser_run,
     insert_proof,
+    insert_review_entries,
     revoke_proof,
 )
 from services.verify_service import verify_proof
 from utils.db_utils import ensure_runtime_directories, get_settings, init_db
+from utils.hash_utils import sha256_text
 from utils.i18n import detect_lang, get_translations
 from utils.json_utils import pretty_json
 from utils.profile_view_utils import build_proof_view
-from utils.url_utils import MERCARI_URL_ERROR, is_valid_mercari_url
+from utils.url_utils import MERCARI_URL_ERROR, build_mercari_reviews_url, is_valid_mercari_url
 
 
 def create_app(test_config: dict[str, Any] | None = None) -> Flask:
@@ -51,7 +55,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     def index() -> str:
         lang = detect_lang(request)
         t = get_translations(lang)
-        return render_template("index.html", t=t, lang=lang)
+        demo_url = "https://jp.mercari.com/user/profile/u_demo_test_seller" if settings.env == "local" else ""
+        return render_template("index.html", t=t, lang=lang, demo_url=demo_url)
 
     @app.post("/api/captures")
     def create_capture() -> tuple[Any, int] | Any:
@@ -64,21 +69,29 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
 
         try:
             resolution = resolve_profile_reference(query_url)
-            reusable_proof = find_latest_reusable_proof_by_source_url(resolution["profile_url"])
-            if reusable_proof is not None:
-                return jsonify(
-                    {
-                        "capture_id": reusable_proof["capture_id"],
-                        "proof_id": reusable_proof["proof_id"],
-                        "proof_url": f"/p/{reusable_proof['proof_id']}",
-                        "profile_url": resolution["profile_url"],
-                        "display_name": reusable_proof.get("display_name") or resolution.get("display_name"),
-                        "query_kind": resolution["query_kind"],
-                        "reused": True,
-                    }
-                )
+            profile_url = resolution["profile_url"]
+            reviews_url = build_mercari_reviews_url(profile_url)
 
-            capture_data = capture_profile(resolution["profile_url"])
+            reusable_proof = find_latest_reusable_proof_by_source_url(profile_url)
+            if reusable_proof is not None:
+                if not _has_new_reviews(reusable_proof.get("latest_review_hash"), reviews_url):
+                    return jsonify(
+                        {
+                            "capture_id": reusable_proof["capture_id"],
+                            "proof_id": reusable_proof["proof_id"],
+                            "proof_url": f"/p/{reusable_proof['proof_id']}",
+                            "profile_url": profile_url,
+                            "display_name": reusable_proof.get("display_name") or resolution.get("display_name"),
+                            "query_kind": resolution["query_kind"],
+                            "reused": True,
+                        }
+                    )
+
+            capture_data = capture_profile(profile_url)
+            review_entries = parse_review_entries(
+                capture_data.get("review_raw_html"),
+                capture_data.get("review_visible_text"),
+            )
             parsed_data = parse_profile(
                 capture_data["raw_html"],
                 capture_data["visible_text"],
@@ -91,8 +104,15 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             if parsed_data.get("display_name") is None and resolution.get("display_name"):
                 parsed_data["display_name"] = resolution["display_name"]
 
-            capture_record = _build_capture_record(resolution["profile_url"], capture_data, parsed_data)
+            capture_record = _build_capture_record(profile_url, capture_data, parsed_data)
             insert_capture(capture_record)
+
+            insert_review_entries(
+                capture_data["capture_id"],
+                profile_url,
+                review_entries,
+                capture_data["captured_at"],
+            )
 
             missing_fields = [field for field in REQUIRED_FIELDS if parsed_data.get(field) is None]
             insert_parser_run(
@@ -103,7 +123,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 missing_fields,
             )
 
-            proof_bundle = build_proof(resolution["profile_url"], capture_data, parsed_data, expires_in_days=expires_in_days)
+            proof_bundle = build_proof(
+                profile_url,
+                capture_data,
+                parsed_data,
+                review_entries=review_entries,
+                expires_in_days=expires_in_days,
+            )
             insert_proof(
                 {
                     "id": proof_bundle["proof_id"],
@@ -127,7 +153,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "capture_id": capture_data["capture_id"],
                 "proof_id": proof_bundle["proof_id"],
                 "proof_url": f"/p/{proof_bundle['proof_id']}",
-                "profile_url": resolution["profile_url"],
+                "profile_url": profile_url,
                 "display_name": parsed_data.get("display_name"),
                 "query_kind": resolution["query_kind"],
                 "reused": False,
@@ -173,6 +199,12 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         proof_view = build_proof_view(document)
         lang = detect_lang(request)
         t = get_translations(lang)
+
+        source_url = document.get("source_url", "")
+        all_proofs = get_proofs_by_source_url(source_url) if source_url else [document]
+        timeline = build_timeline(all_proofs, proof_id)
+        _format_timeline_nodes(timeline, t)
+
         return render_template(
             template_name,
             proof=document,
@@ -181,9 +213,28 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             proof_json=pretty_json(document),
             t=t,
             lang=lang,
+            timeline=timeline,
         )
 
     return app
+
+
+def _has_new_reviews(stored_hash: str | None, reviews_url: str) -> bool:
+    """Returns True if a new review is detected on the live reviews page."""
+    if not stored_hash:
+        # No stored hash means the previous proof has no quality data; force re-capture.
+        return True
+    try:
+        capture = capture_lookup_page(reviews_url)
+        entries = parse_review_entries(capture.get("raw_html"), capture.get("visible_text"))
+        if not entries:
+            return False
+        first = entries[0]
+        body = first.get("body_excerpt") or ""
+        live_hash = sha256_text(f"{first['role']}|{first['rating']}|{body}")
+        return live_hash != stored_hash
+    except Exception:
+        return False
 
 
 def _extract_query_url(payload: dict[str, Any]) -> str:
@@ -242,6 +293,39 @@ def _normalize_verify_input(proof_input: Any, signature: Any) -> tuple[dict[str,
     if not resolved_signature:
         resolved_signature = ""
     return proof, str(resolved_signature)
+
+
+def _format_timeline_nodes(timeline: list[dict[str, Any]], t: dict[str, str]) -> None:
+    field_labels: dict[str, str] = {
+        "metrics.total_reviews": t.get("total_reviews", "reviews"),
+        "metrics.positive_reviews": t.get("positive", "positive"),
+        "metrics.negative_reviews": t.get("negative", "negative"),
+        "metrics.listing_count": t.get("listings", "listings"),
+        "metrics.followers_count": t.get("followers", "followers"),
+        "metrics.following_count": t.get("following", "following"),
+        "quality.overall.rate": t.get("quality_overall", "quality"),
+        "subject.display_name": t.get("display_name_label", "Name"),
+        "subject.verified_badge": t.get("badge_label", "Badge"),
+    }
+    for node in timeline:
+        captured_at = node.get("captured_at", "")
+        node["display_date"] = captured_at[:10] if len(captured_at) >= 10 else captured_at
+
+        diff = node.get("diff_from_prev")
+        summaries: list[str] = []
+        if diff and diff.get("changes"):
+            for change in diff["changes"]:
+                field = change["field"]
+                label = field_labels.get(field, field.split(".")[-1])
+                delta = change.get("delta")
+                old_val = change.get("old")
+                new_val = change.get("new")
+                if delta is not None:
+                    prefix = "+" if delta > 0 else ""
+                    summaries.append(f"{prefix}{delta} {label}")
+                elif old_val is not None and new_val is not None:
+                    summaries.append(f"{label}: {old_val}\u2192{new_val}")
+        node["change_summary"] = summaries
 
 
 def _missing_required_fields(document: dict[str, Any]) -> list[str]:

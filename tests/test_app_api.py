@@ -168,7 +168,12 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         }
     )
 
-    proof_bundle = build_proof(PROFILE_URL, capture_data, parsed_data)
+    # Include fake review entries so the proof has a latest_review_hash
+    fake_review_entries = [
+        {"role": "seller", "rating": "positive", "body_excerpt": "ありがとうございました", "entry_order": 1},
+        {"role": "buyer", "rating": "positive", "body_excerpt": "良い商品でした", "entry_order": 2},
+    ]
+    proof_bundle = build_proof(PROFILE_URL, capture_data, parsed_data, review_entries=fake_review_entries)
     insert_proof(
         {
             "id": proof_bundle["proof_id"],
@@ -199,8 +204,15 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
     def fake_capture_profile(profile_url: str):
         raise AssertionError(f"capture_profile should not run for an existing snapshot: {profile_url}")
 
+    # Return the same review text so the hash matches → no new reviews → reuse
+    REUSE_REVIEW_TEXT = "ありがとうございました\n出品者\nありがとうございました\n2026/04"
+
+    def fake_capture_lookup_page(url: str) -> dict:
+        return {"raw_html": "", "visible_text": REUSE_REVIEW_TEXT}
+
     monkeypatch.setattr(app_module, "resolve_profile_reference", fake_resolve_profile_reference)
     monkeypatch.setattr(app_module, "capture_profile", fake_capture_profile)
+    monkeypatch.setattr(app_module, "capture_lookup_page", fake_capture_lookup_page)
 
     capture_response = client.post("/api/captures", json={"query_url": ITEM_URL})
 

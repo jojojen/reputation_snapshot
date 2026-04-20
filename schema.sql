@@ -50,3 +50,17 @@ CREATE TABLE IF NOT EXISTS parser_runs (
     missing_fields_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS review_entries (
+    id TEXT PRIMARY KEY,
+    source_url TEXT NOT NULL,
+    capture_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    rating TEXT NOT NULL,
+    body_excerpt TEXT,
+    entry_order INTEGER NOT NULL,
+    content_hash TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    FOREIGN KEY (capture_id) REFERENCES captures(id),
+    UNIQUE (source_url, content_hash)
+);

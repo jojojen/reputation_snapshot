@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from utils.db_utils import ensure_runtime_directories, get_db_connection, now_jst_iso, project_path
+from utils.hash_utils import sha256_text
 from utils.json_utils import pretty_json
 
 
@@ -152,7 +153,8 @@ def find_latest_reusable_proof_by_source_url(source_url: str) -> dict[str, Any] 
                 p.expires_at AS expires_at,
                 p.published_at AS published_at,
                 c.source_url AS source_url,
-                c.display_name AS display_name
+                c.display_name AS display_name,
+                p.proof_payload_json AS proof_payload_json
             FROM proofs AS p
             INNER JOIN captures AS c ON c.id = p.capture_id
             WHERE c.source_url = ?
@@ -164,7 +166,93 @@ def find_latest_reusable_proof_by_source_url(source_url: str) -> dict[str, Any] 
             """,
             (source_url, now_jst_iso()),
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    result = dict(row)
+    try:
+        payload = json.loads(result.pop("proof_payload_json"))
+        result["latest_review_hash"] = (payload.get("quality") or {}).get("latest_review_hash")
+    except Exception:
+        result.pop("proof_payload_json", None)
+        result["latest_review_hash"] = None
+    return result
+
+
+def insert_review_entries(
+    capture_id: str,
+    source_url: str,
+    entries: list[dict[str, Any]],
+    captured_at: str,
+) -> None:
+    if not entries:
+        return
+    with get_db_connection() as connection:
+        for entry in entries:
+            body = entry.get("body_excerpt") or ""
+            content_hash = sha256_text(f"{entry['role']}|{entry['rating']}|{body}")
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO review_entries
+                    (id, source_url, capture_id, role, rating, body_excerpt,
+                     entry_order, content_hash, captured_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"rev_{uuid.uuid4().hex[:12]}",
+                    source_url,
+                    capture_id,
+                    entry["role"],
+                    entry["rating"],
+                    entry.get("body_excerpt"),
+                    entry["entry_order"],
+                    content_hash,
+                    captured_at,
+                ),
+            )
+        connection.commit()
+
+
+def get_latest_review_entry_hash(source_url: str) -> str | None:
+    """Returns content_hash of entry_order=1 from the most recent capture."""
+    with get_db_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT content_hash FROM review_entries
+            WHERE source_url = ? AND entry_order = 1
+            ORDER BY captured_at DESC
+            LIMIT 1
+            """,
+            (source_url,),
+        ).fetchone()
+    return row[0] if row else None
+
+
+def get_proofs_by_source_url(source_url: str) -> list[dict[str, Any]]:
+    """Return all non-revoked proofs for a seller URL, oldest first, with payloads parsed."""
+    with get_db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT p.*
+            FROM proofs AS p
+            INNER JOIN captures AS c ON c.id = p.capture_id
+            WHERE c.source_url = ?
+              AND p.revoked_at IS NULL
+              AND p.status IN ('active', 'partial')
+            ORDER BY p.published_at ASC
+            """,
+            (source_url,),
+        ).fetchall()
+
+    result = []
+    for row in rows:
+        rec = dict(row)
+        payload = json.loads(rec["proof_payload_json"])
+        payload["proof_sha256"] = rec["proof_sha256"]
+        payload["signature"] = rec["signature"]
+        payload["kid"] = rec["kid"]
+        payload["status"] = rec["status"]
+        result.append(payload)
+    return result
 
 
 def get_proof_document(proof_id: str) -> dict[str, Any] | None:

@@ -8,6 +8,14 @@ from services.llm_repair_service import repair_parse
 from utils.db_utils import get_settings
 
 
+_RATING_MAP = {"良かった": "positive", "良い": "positive", "残念だった": "negative", "悪い": "negative"}
+_SELLER_TOKENS = ("出品者",)
+_BUYER_TOKENS = ("購入者",)
+_SKIP_LINES = frozenset(("もっとみる", "もっと見る", "出品者として", "購入者として", "出品者", "購入者"))
+_REVIEW_DATE_RE = re.compile(r"^\d{4}/\d{2}$")
+_GOOD_COUNT_RE = re.compile(r"良かった\s*\((\d+)\)")
+_BAD_COUNT_RE = re.compile(r"残念だった\s*\((\d+)\)")
+
 REQUIRED_FIELDS = (
     "display_name",
     "total_reviews",
@@ -43,6 +51,96 @@ NOISE_TOKENS = (
     "件のレビュー",
     "本人確認済",
 )
+
+
+def parse_review_entries(
+    review_raw_html: str | None = None,
+    review_visible_text: str | None = None,
+) -> list[dict[str, Any]]:
+    """Parse individual review entries (role + rating) from the reviews page."""
+    if not review_visible_text and not review_raw_html:
+        return []
+    text = review_visible_text or _clean_html_fragment(review_raw_html or "")
+    return _parse_reviews_from_text(text)
+
+
+def _parse_reviews_from_text(visible_text: str) -> list[dict[str, Any]]:
+    """Parse Mercari review page text.
+
+    The reviews page shows entries from the 良かった (good) tab by default.
+    Each entry ends with a YYYY/MM date line. Summary counts at the top
+    ("良かった (N)" / "残念だった (N)") are used to inject negative entries
+    so that the overall quality rate is accurate.
+    """
+    lines = [re.sub(r"\s+", " ", ln).strip() for ln in visible_text.splitlines()]
+    lines = [ln for ln in lines if ln]
+
+    # Extract summary counts from header (only the first occurrence of each)
+    good_count: int | None = None
+    bad_count: int | None = None
+    for line in lines:
+        if good_count is None:
+            m = _GOOD_COUNT_RE.search(line)
+            if m:
+                good_count = int(m.group(1))
+        if bad_count is None:
+            m = _BAD_COUNT_RE.search(line)
+            if m:
+                bad_count = int(m.group(1))
+        if good_count is not None and bad_count is not None:
+            break
+
+    # Parse individual entries anchored on YYYY/MM date lines.
+    # The page shows only the good-tab entries, so rating = positive for all.
+    entries: list[dict[str, Any]] = []
+    for i, line in enumerate(lines):
+        if len(entries) >= 100:
+            break
+        if not _REVIEW_DATE_RE.match(line):
+            continue
+
+        # Look backwards up to 6 lines for the role label
+        role: str | None = None
+        role_idx = -1
+        for j in range(i - 1, max(-1, i - 7), -1):
+            if any(t in lines[j] for t in _SELLER_TOKENS):
+                role = "seller"
+                role_idx = j
+                break
+            if any(t in lines[j] for t in _BUYER_TOKENS):
+                role = "buyer"
+                role_idx = j
+                break
+
+        if role is None:
+            continue
+
+        # Collect text between the role line and the date line
+        body_parts = [
+            ln for ln in lines[role_idx + 1:i]
+            if ln not in _SKIP_LINES and not _REVIEW_DATE_RE.match(ln)
+        ]
+        body_excerpt = " ".join(body_parts)[:200].strip() or None
+
+        entries.append({
+            "role": role,
+            "rating": "positive",
+            "body_excerpt": body_excerpt,
+            "entry_order": len(entries) + 1,
+        })
+
+    # Inject synthetic negative entries from the summary count so that
+    # overall quality rate reflects the true good/bad ratio.
+    if bad_count and bad_count > 0 and entries:
+        for _ in range(min(bad_count, 100 - len(entries))):
+            entries.append({
+                "role": "unknown",
+                "rating": "negative",
+                "body_excerpt": None,
+                "entry_order": len(entries) + 1,
+            })
+
+    return entries
 
 
 def parse_profile(

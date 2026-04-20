@@ -19,7 +19,7 @@ REQUIRED_TOP_LEVEL_KEYS = {
     "subject",
     "metrics",
     "signals",
-    "score",
+    "quality",
     "evidence",
     "status",
 }

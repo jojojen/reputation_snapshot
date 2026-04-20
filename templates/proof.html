@@ -54,14 +54,35 @@
       </article>
 
       <article class="panel trust-card">
-        <div class="trust-card-head">
-          <div>
-            <p class="eyebrow">{{ t.reputation_overview }}</p>
-            <h2>{{ proof.score.value }} / 100</h2>
-            <p class="muted">{{ proof_view.score_headline }}</p>
+        <p class="eyebrow">{{ t.reputation_overview }}</p>
+
+        {% if proof.quality %}
+        <div class="quality-grid">
+          {% if proof.quality.overall %}
+          <div class="quality-item">
+            <span class="quality-label">{{ t.quality_overall }}</span>
+            <span class="quality-rate{{ ' quality-rate-warn' if proof.quality.overall.rate is not none and proof.quality.overall.rate < 80 }}">{{ proof.quality.overall.rate if proof.quality.overall.rate is not none else 'N/A' }}{% if proof.quality.overall.rate is not none %}%{% endif %}</span>
+            <span class="quality-count">{{ proof.quality.entry_count }} {{ t.quality_reviews }}</span>
           </div>
-          <div class="grade-badge grade-{{ proof.score.grade }}">{{ proof.score.grade }}</div>
+          {% endif %}
+          {% if proof.quality.as_seller %}
+          <div class="quality-item">
+            <span class="quality-label">{{ t.quality_as_seller }}</span>
+            <span class="quality-rate{{ ' quality-rate-warn' if proof.quality.as_seller.rate is not none and proof.quality.as_seller.rate < 80 }}">{{ proof.quality.as_seller.rate if proof.quality.as_seller.rate is not none else 'N/A' }}{% if proof.quality.as_seller.rate is not none %}%{% endif %}</span>
+            <span class="quality-count">{{ proof.quality.as_seller.positive + proof.quality.as_seller.negative }} {{ t.quality_reviews }}</span>
+          </div>
+          {% endif %}
+          {% if proof.quality.as_buyer %}
+          <div class="quality-item">
+            <span class="quality-label">{{ t.quality_as_buyer }}</span>
+            <span class="quality-rate{{ ' quality-rate-warn' if proof.quality.as_buyer.rate is not none and proof.quality.as_buyer.rate < 80 }}">{{ proof.quality.as_buyer.rate if proof.quality.as_buyer.rate is not none else 'N/A' }}{% if proof.quality.as_buyer.rate is not none %}%{% endif %}</span>
+            <span class="quality-count">{{ proof.quality.as_buyer.positive + proof.quality.as_buyer.negative }} {{ t.quality_reviews }}</span>
+          </div>
+          {% endif %}
         </div>
+        {% else %}
+        <p class="muted">{{ t.no_quality_data }}</p>
+        {% endif %}
 
         <div class="review-summary">
           <div class="review-summary-line">
@@ -201,6 +222,50 @@
           </dl>
         </details>
       </article>
+    </section>
+
+    <section class="panel timeline-panel">
+      <p class="eyebrow">{{ t.timeline_title }}</p>
+      {% if timeline | length <= 1 %}
+      <p class="muted">{{ t.timeline_single }}</p>
+      {% else %}
+      <ol class="timeline-list">
+        {% for node in timeline %}
+        <li class="timeline-node{{ ' timeline-node-current' if node.is_current }}">
+          <div class="timeline-dot{{ ' timeline-dot-current' if node.is_current }}"></div>
+          <div class="timeline-body">
+            <div class="timeline-header">
+              <span class="timeline-date">{{ node.display_date }}</span>
+              {% if node.quality_rate is not none %}
+              <span class="timeline-quality-rate">{{ node.quality_rate }}%</span>
+              {% endif %}
+              {% if node.total_reviews is not none %}
+              <span class="timeline-reviews">{{ node.total_reviews }} reviews</span>
+              {% endif %}
+              {% if not node.is_current %}
+              <a href="/p/{{ node.proof_id }}" class="timeline-link">{{ t.timeline_view }}</a>
+              {% else %}
+              <span class="timeline-current-label">{{ t.timeline_current }}</span>
+              {% endif %}
+            </div>
+            {% if node.diff_from_prev %}
+            <div class="timeline-changes">
+              {% if node.change_summary %}
+              {% for item in node.change_summary %}
+              <span class="timeline-change-chip{{ ' timeline-change-warn' if '⚠' in item or (item.startswith('+') and 'negative' in item) }}">{{ item }}</span>
+              {% endfor %}
+              {% else %}
+              <span class="muted">{{ t.timeline_no_changes }}</span>
+              {% endif %}
+            </div>
+            {% else %}
+            <p class="muted timeline-first-label">{{ t.timeline_first }}</p>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% endif %}
     </section>
 
     <section class="panel technical-panel">

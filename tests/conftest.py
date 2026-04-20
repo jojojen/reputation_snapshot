@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-import pytest
+# Redirect DB to a test-only file BEFORE any import triggers get_settings() caching,
+# so tests never touch the real instance/app.db.
+os.environ["DB_PATH"] = "instance/test.db"
 
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:

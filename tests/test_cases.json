@@ -11,9 +11,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 60,
-      "max_score": 90
+      "proof_should_generate": true
     }
   },
   {
@@ -28,9 +26,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 60,
-      "max_score": 90
+      "proof_should_generate": true
     }
   },
   {
@@ -45,9 +41,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 60,
-      "max_score": 90
+      "proof_should_generate": true
     }
   },
   {
@@ -62,9 +56,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 60,
-      "max_score": 90
+      "proof_should_generate": true
     }
   },
   {
@@ -79,9 +71,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 60,
-      "max_score": 90
+      "proof_should_generate": true
     }
   },
   {
@@ -96,9 +86,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 30,
-      "max_score": 55
+      "proof_should_generate": true
     }
   },
   {
@@ -113,9 +101,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 30,
-      "max_score": 55
+      "proof_should_generate": true
     }
   },
   {
@@ -130,9 +116,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 30,
-      "max_score": 55
+      "proof_should_generate": true
     }
   },
   {
@@ -147,9 +131,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 30,
-      "max_score": 55
+      "proof_should_generate": true
     }
   },
   {
@@ -164,9 +146,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 30,
-      "max_score": 55
+      "proof_should_generate": true
     }
   },
   {
@@ -181,9 +161,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 10,
-      "max_score": 30
+      "proof_should_generate": true
     }
   },
   {
@@ -198,9 +176,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 10,
-      "max_score": 30
+      "proof_should_generate": true
     }
   },
   {
@@ -215,9 +191,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 10,
-      "max_score": 30
+      "proof_should_generate": true
     }
   },
   {
@@ -232,9 +206,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 10,
-      "max_score": 30
+      "proof_should_generate": true
     }
   },
   {
@@ -249,9 +221,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 10,
-      "max_score": 30
+      "proof_should_generate": true
     }
   },
   {
@@ -266,9 +236,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 15,
-      "max_score": 40
+      "proof_should_generate": true
     }
   },
   {
@@ -283,9 +251,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 15,
-      "max_score": 40
+      "proof_should_generate": true
     }
   },
   {
@@ -300,9 +266,7 @@
       "has_listing_count": true,
       "has_followers_count": false,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 0,
-      "max_score": 20
+      "proof_should_generate": true
     }
   },
   {
@@ -317,9 +281,7 @@
       "has_listing_count": true,
       "has_followers_count": false,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 0,
-      "max_score": 20
+      "proof_should_generate": true
     }
   },
   {
@@ -334,9 +296,7 @@
       "has_listing_count": true,
       "has_followers_count": true,
       "has_following_count": true,
-      "proof_should_generate": true,
-      "min_score": 20,
-      "max_score": 45
+      "proof_should_generate": true
     }
   }
 ]
