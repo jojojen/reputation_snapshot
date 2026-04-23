@@ -53,6 +53,16 @@ NOISE_TOKENS = (
 )
 
 
+SITE_NOISE_MARKERS = (
+    "メルカリについて",
+    "会社概要",
+    "運営会社",
+    "お知らせ",
+    "ガイド",
+    "ヘルプ",
+)
+
+
 def parse_review_summary_counts(visible_text: str) -> tuple[int, int]:
     """Return (good_count, bad_count) from the review page header summary lines."""
     good, bad = 0, 0
@@ -190,9 +200,9 @@ def parse_profile(
         "total_reviews": _extract_total_reviews(metric_sources, lines, display_name),
         "positive_reviews": _extract_metric_value(metric_sources, POSITIVE_REVIEW_LABELS, allow_label_first=True),
         "negative_reviews": _extract_metric_value(metric_sources, NEGATIVE_REVIEW_LABELS, allow_label_first=True),
-        "listing_count": _extract_metric_value(metric_sources, LISTING_LABELS, allow_label_first=False),
-        "followers_count": _extract_metric_value(metric_sources, FOLLOWER_LABELS, allow_label_first=False),
-        "following_count": _extract_metric_value(metric_sources, FOLLOWING_LABELS, allow_label_first=False),
+        "listing_count": _extract_metric_value(metric_sources, LISTING_LABELS, allow_label_first=True),
+        "followers_count": _extract_metric_value(metric_sources, FOLLOWER_LABELS, allow_label_first=True),
+        "following_count": _extract_metric_value(metric_sources, FOLLOWING_LABELS, allow_label_first=True),
         "bio_excerpt": None,
         "sample_items": [],
         "parser_version": get_settings().parser_version,
@@ -200,6 +210,16 @@ def parse_profile(
         "llm_repair_applied": 0,
         "completeness_status": "partial",
     }
+
+    line_metric_overrides = {
+        "total_reviews": _extract_metric_from_lines_by_labels(lines, ("評価", "評価数")),
+        "listing_count": _extract_metric_from_lines_by_labels(lines, ("出品数",)),
+        "followers_count": _extract_metric_from_lines_by_labels(lines, ("フォロワー",)),
+        "following_count": _extract_metric_from_lines_by_labels(lines, ("フォロー中",)),
+    }
+    for field, value in line_metric_overrides.items():
+        if value is not None:
+            parsed[field] = value
 
     if item_total_reviews is not None and (parsed["total_reviews"] is None or parsed["total_reviews"] < item_total_reviews):
         parsed["total_reviews"] = item_total_reviews
@@ -358,6 +378,20 @@ def _extract_metric_from_patterns(metric_sources: tuple[str, ...], patterns: tup
     return None
 
 
+def _extract_metric_from_lines_by_labels(lines: list[str], labels: tuple[str, ...]) -> int | None:
+    label_pattern = "|".join(re.escape(label) for label in labels)
+    patterns = (
+        rf"(?:{label_pattern})\s*[:：]?\s*([\d,]+)",
+        rf"([\d,]+)\s*(?:{label_pattern})",
+    )
+    for line in lines:
+        for pattern in patterns:
+            match = re.search(pattern, line)
+            if match:
+                return int(match.group(1).replace(",", ""))
+    return None
+
+
 def _extract_total_reviews_from_lines(lines: list[str], display_name: str | None) -> int | None:
     if display_name and display_name in lines:
         display_index = lines.index(display_name)
@@ -400,6 +434,8 @@ def _extract_bio_excerpt(lines: list[str], display_name: str | None) -> str | No
             continue
         if _contains_metric_label(line):
             continue
+        if any(marker in line for marker in SITE_NOISE_MARKERS):
+            continue
         if any(token in line for token in NOISE_TOKENS):
             continue
         if re.fullmatch(r"[\d,\s]+", line):
@@ -425,6 +461,8 @@ def _extract_sample_items(raw_html: str, lines: list[str], display_name: str | N
         if len(line) < 3 or len(line) > 120:
             continue
         if _contains_metric_label(line):
+            continue
+        if any(marker in line for marker in SITE_NOISE_MARKERS):
             continue
         if any(token in line for token in NOISE_TOKENS):
             continue
@@ -499,6 +537,8 @@ def _looks_like_display_name(value: str) -> bool:
         return False
     if re.fullmatch(r"[\d,\s]+", value):
         return False
+    if any(marker in value for marker in SITE_NOISE_MARKERS):
+        return False
     if _contains_metric_label(value):
         return False
     return True
@@ -506,6 +546,8 @@ def _looks_like_display_name(value: str) -> bool:
 
 def _is_probable_item_name(value: str) -> bool:
     if not value or len(value) > 120:
+        return False
+    if any(marker in value for marker in SITE_NOISE_MARKERS):
         return False
     if _contains_metric_label(value):
         return False
