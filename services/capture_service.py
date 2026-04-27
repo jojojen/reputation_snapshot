@@ -64,6 +64,8 @@ def capture_profile(profile_url: str) -> dict[str, Any]:
         "review_raw_html": review_capture.get("raw_html"),
         "review_visible_text": review_capture.get("visible_text"),
         "review_bad_visible_text": review_capture.get("bad_visible_text"),
+        "review_buyer_visible_text": review_capture.get("buyer_visible_text"),
+        "review_buyer_bad_visible_text": review_capture.get("buyer_bad_visible_text"),
         "review_http_status": review_capture.get("http_status"),
     }
 
@@ -136,7 +138,15 @@ def extract_item_seller_context(raw_html: str, visible_text: str) -> dict[str, A
 
     line_context = _extract_item_seller_from_lines(visible_text)
     for key, value in line_context.items():
-        if context.get(key) is None and value is not None:
+        if value is None:
+            continue
+        if key == "display_name" and (
+            context.get(key) is None or _is_suspicious_seller_name(str(context.get(key)))
+        ):
+            context[key] = value
+        elif key == "seller_total_reviews" and (
+            context.get(key) is None or int(value) > int(context.get(key) or 0)
+        ):
             context[key] = value
 
     if context["profile_url"] is None:
@@ -183,28 +193,95 @@ def _capture_optional_review_page(context: Any, reviews_url: str) -> dict[str, A
         capture = _capture_page(review_page, reviews_url, take_screenshot=False)
         if capture["http_status"] >= 400:
             return {"http_status": capture["http_status"]}
-        good_html = capture["raw_html"]
-        good_text = capture["visible_text"]
-        # Also capture the bad (残念だった) tab by clicking it
-        bad_text = ""
-        try:
-            bad_btn = review_page.query_selector('[aria-controls="bad"]')
-            if bad_btn:
-                bad_btn.click()
-                review_page.wait_for_timeout(2000)
-                bad_text = review_page.evaluate("() => document.body ? document.body.innerText : ''")
-        except Exception:
-            pass
+        tab_text = _capture_review_tab_texts(review_page, capture)
         return {
-            "raw_html": good_html,
-            "visible_text": good_text,
-            "bad_visible_text": bad_text,
+            "raw_html": tab_text["raw_html"],
+            "visible_text": tab_text["seller_good"],
+            "bad_visible_text": tab_text["seller_bad"],
+            "buyer_visible_text": tab_text["buyer_good"],
+            "buyer_bad_visible_text": tab_text["buyer_bad"],
             "http_status": capture["http_status"],
         }
     except Exception:
         return {"http_status": None}
     finally:
         review_page.close()
+
+
+def _capture_review_tab_texts(page: Any, initial_capture: dict[str, Any]) -> dict[str, str | None]:
+    raw_html = initial_capture["raw_html"]
+    seller_good = initial_capture["visible_text"]
+    seller_bad = ""
+    buyer_good = ""
+    buyer_bad = ""
+
+    if _click_review_tab(page, "seller"):
+        _click_review_tab(page, "good")
+        raw_html = page.content()
+        seller_good = _read_body_text(page)
+
+    if _click_review_tab(page, "bad"):
+        seller_bad = _read_body_text(page)
+
+    if _click_review_tab(page, "buyer"):
+        _click_review_tab(page, "good")
+        buyer_good = _read_body_text(page)
+        if _click_review_tab(page, "bad"):
+            buyer_bad = _read_body_text(page)
+
+    return {
+        "raw_html": raw_html,
+        "seller_good": seller_good,
+        "seller_bad": seller_bad,
+        "buyer_good": buyer_good,
+        "buyer_bad": buyer_bad,
+    }
+
+
+def _click_review_tab(page: Any, tab: str) -> bool:
+    selector_map = {
+        "good": ('[aria-controls="good"]', '[data-testid*="good"]'),
+        "bad": ('[aria-controls="bad"]', '[data-testid*="bad"]'),
+        "seller": ('[aria-controls="seller"]', '[aria-controls*="seller"]', '[data-testid*="seller"]'),
+        "buyer": ('[aria-controls="buyer"]', '[aria-controls*="buyer"]', '[data-testid*="buyer"]'),
+    }
+    label_map = {
+        "good": ("良かった", "良い"),
+        "bad": ("残念だった", "悪い"),
+        "seller": ("出品者",),
+        "buyer": ("購入者",),
+    }
+    for selector in selector_map[tab]:
+        try:
+            element = page.query_selector(selector)
+            if element:
+                element.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+    for label in label_map[tab]:
+        try:
+            locator = page.get_by_role("tab", name=re.compile(label))
+            if locator.count():
+                locator.first.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+        try:
+            locator = page.get_by_text(label, exact=False)
+            if locator.count():
+                locator.first.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _read_body_text(page: Any) -> str:
+    return page.evaluate("() => document.body ? document.body.innerText : ''")
 
 
 def _parse_item_seller_label(label: str) -> dict[str, Any]:
@@ -233,7 +310,7 @@ def _extract_item_seller_from_lines(visible_text: str) -> dict[str, Any]:
 
     for line in seller_window:
         combined_match = re.fullmatch(r"(.+?)\s+([\d,]+)", line)
-        if combined_match and display_name is None:
+        if combined_match and display_name is None and _looks_like_seller_name(combined_match.group(1).strip()):
             display_name = combined_match.group(1).strip()
             total_reviews = int(combined_match.group(2).replace(",", ""))
             break
@@ -271,11 +348,17 @@ def _extract_lines(visible_text: str) -> list[str]:
 def _looks_like_seller_name(line: str) -> bool:
     if not line or line in {"本人確認済", "フォロー", "コメント"}:
         return False
+    if _is_suspicious_seller_name(line):
+        return False
     if re.search(r"(税込|送料|分前|出品者レベル|レビュー|出品数|フォロワー|フォロー中)", line):
         return False
     if re.fullmatch(r"[\d,]+", line):
         return False
     return True
+
+
+def _is_suspicious_seller_name(line: str) -> bool:
+    return bool(re.fullmatch(r"(?:Seller Level|Quick shipment)(?:\s+\d+)?", line))
 
 
 def _mercari_browser_context():

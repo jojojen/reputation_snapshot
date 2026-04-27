@@ -84,34 +84,85 @@ def parse_review_entries(
     review_raw_html: str | None = None,
     review_visible_text: str | None = None,
     review_bad_visible_text: str | None = None,
+    review_buyer_visible_text: str | None = None,
+    review_buyer_bad_visible_text: str | None = None,
 ) -> list[dict[str, Any]]:
     """Parse individual review entries (role + rating) from the reviews page.
 
-    The default good-tab text gives all positive entries.
-    The bad-tab text (if available) gives negative entries with role info.
-    If bad-tab text is absent, synthetic negative entries are injected from
+    When buyer-tab text is provided, roles are assigned directly from which tab the
+    text came from (more accurate than context-based detection):
+      - seller tab entries  → role="seller"  (profile owner was seller)
+      - buyer tab entries   → role="buyer"   (profile owner was buyer)
+
+    Without buyer-tab data, falls back to role-label detection within the seller tab text.
+    If bad-tab text is absent in fallback mode, synthetic negatives are injected from
     the summary count so that the overall quality rate remains accurate.
     """
-    if not review_visible_text and not review_raw_html and not review_bad_visible_text:
+    if not any([review_visible_text, review_raw_html, review_bad_visible_text,
+                review_buyer_visible_text, review_buyer_bad_visible_text]):
         return []
 
     good_text = review_visible_text or _clean_html_fragment(review_raw_html or "")
-    good_entries = _parse_reviews_from_text(good_text, default_rating="positive") if good_text else []
+    has_buyer_tab_data = bool(
+        (review_buyer_visible_text or "").strip()
+        or (review_buyer_bad_visible_text or "").strip()
+    )
 
-    if review_bad_visible_text:
-        bad_entries = _parse_reviews_from_text(review_bad_visible_text, default_rating="negative")
-    else:
-        # Fall back: inject synthetic negatives from the good-tab summary count
-        bad_count = _extract_summary_bad_count(good_text) if good_text else 0
-        bad_entries = [
-            {"role": "unknown", "rating": "negative", "body_excerpt": None, "entry_order": 0}
-            for _ in range(min(bad_count, max(0, 100 - len(good_entries))))
-        ]
+    if good_text and not has_buyer_tab_data and _has_inline_review_roles(good_text):
+        context_good = _parse_reviews_from_text(good_text, default_rating="positive")
+        if review_bad_visible_text:
+            context_bad = _parse_reviews_from_text(review_bad_visible_text, default_rating="negative")
+        else:
+            bad_count = _extract_summary_bad_count(good_text)
+            context_bad = [
+                {"role": "unknown", "rating": "negative", "body_excerpt": None, "entry_order": 0}
+                for _ in range(min(bad_count, max(0, 100 - len(context_good))))
+            ]
+        all_entries = context_good + context_bad
+        for idx, entry in enumerate(all_entries):
+            entry["entry_order"] = idx + 1
+        return all_entries
 
-    all_entries = good_entries + bad_entries
+    # Primary path: fixed-role parsing anchored on YYYY/MM dates.
+    # Mercari review pages are tab-separated (each tab = one role), so there are no
+    # per-entry role labels in the visible text — the role is determined by which tab
+    # the text came from.
+    seller_good = _parse_entries_with_fixed_role(good_text, "seller", "positive") if good_text else []
+    seller_bad = _parse_entries_with_fixed_role(review_bad_visible_text, "seller", "negative") if review_bad_visible_text else []
+    buyer_good = _parse_entries_with_fixed_role(review_buyer_visible_text, "buyer", "positive") if review_buyer_visible_text else []
+    buyer_bad = _parse_entries_with_fixed_role(review_buyer_bad_visible_text, "buyer", "negative") if review_buyer_bad_visible_text else []
+    all_entries = seller_good + seller_bad + buyer_good + buyer_bad
+
+    # If fixed-role parsing found nothing and buyer tab data is absent, fall back to
+    # context-based role detection (old approach — handles non-standard layouts where
+    # role labels appear inline per entry).
+    if not all_entries and good_text and not has_buyer_tab_data:
+        context_good = _parse_reviews_from_text(good_text, default_rating="positive")
+        if review_bad_visible_text:
+            context_bad = _parse_reviews_from_text(review_bad_visible_text, default_rating="negative")
+        else:
+            bad_count = _extract_summary_bad_count(good_text) if good_text else 0
+            context_bad = [
+                {"role": "unknown", "rating": "negative", "body_excerpt": None, "entry_order": 0}
+                for _ in range(min(bad_count, max(0, 100 - len(context_good))))
+            ]
+        all_entries = context_good + context_bad
+
     for idx, entry in enumerate(all_entries):
         entry["entry_order"] = idx + 1
     return all_entries
+
+
+def _has_inline_review_roles(visible_text: str) -> bool:
+    lines = [re.sub(r"\s+", " ", ln).strip() for ln in visible_text.splitlines()]
+    lines = [ln for ln in lines if ln]
+    for i, line in enumerate(lines):
+        if not _REVIEW_DATE_RE.match(line):
+            continue
+        lookback = lines[max(0, i - 7):i]
+        if any(any(token in candidate for token in _BUYER_TOKENS + _SELLER_TOKENS) for candidate in lookback):
+            return True
+    return False
 
 
 def _extract_summary_bad_count(visible_text: str) -> int:
@@ -120,6 +171,38 @@ def _extract_summary_bad_count(visible_text: str) -> int:
         if m:
             return int(m.group(1))
     return 0
+
+
+def _parse_entries_with_fixed_role(visible_text: str, role: str, rating: str) -> list[dict[str, Any]]:
+    """Parse entries from a single-role tab where role and rating are already known.
+
+    Anchors on YYYY/MM date lines; body text is the content between consecutive dates.
+    For the first entry, only looks back 10 lines to avoid pulling in page header noise.
+    """
+    lines = [re.sub(r"\s+", " ", ln).strip() for ln in visible_text.splitlines()]
+    lines = [ln for ln in lines if ln]
+
+    date_indices = [i for i, ln in enumerate(lines) if _REVIEW_DATE_RE.match(ln)]
+    entries: list[dict[str, Any]] = []
+    for k, date_idx in enumerate(date_indices):
+        if len(entries) >= 100:
+            break
+        # First entry: limit lookback to avoid including page-header noise
+        start = date_indices[k - 1] + 1 if k > 0 else max(0, date_idx - 10)
+        body_parts = [
+            ln for ln in lines[start:date_idx]
+            if not _is_review_chrome_line(ln)
+            and not _REVIEW_DATE_RE.match(ln)
+            and not (any(t in ln for t in _BUYER_TOKENS + _SELLER_TOKENS) and len(ln) <= 20)
+        ]
+        body_excerpt = " ".join(body_parts)[:200].strip() or None
+        entries.append({
+            "role": role,
+            "rating": rating,
+            "body_excerpt": body_excerpt,
+            "entry_order": len(entries) + 1,
+        })
+    return entries
 
 
 def _parse_reviews_from_text(visible_text: str, default_rating: str = "positive") -> list[dict[str, Any]]:
@@ -159,7 +242,7 @@ def _parse_reviews_from_text(visible_text: str, default_rating: str = "positive"
 
         body_parts = [
             ln for ln in lines[role_idx + 1:i]
-            if ln not in _SKIP_LINES and not _REVIEW_DATE_RE.match(ln)
+            if not _is_review_chrome_line(ln) and not _REVIEW_DATE_RE.match(ln)
         ]
         body_excerpt = " ".join(body_parts)[:200].strip() or None
 
@@ -171,6 +254,15 @@ def _parse_reviews_from_text(visible_text: str, default_rating: str = "positive"
         })
 
     return entries
+
+
+def _is_review_chrome_line(line: str) -> bool:
+    if line in _SKIP_LINES:
+        return True
+    for label in POSITIVE_REVIEW_LABELS + NEGATIVE_REVIEW_LABELS:
+        if re.fullmatch(rf"{re.escape(label)}\s*(?:\([\d,]+\))?", line):
+            return True
+    return False
 
 
 def parse_profile(

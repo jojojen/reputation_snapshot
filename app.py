@@ -7,7 +7,7 @@ from typing import Any
 from flask import Flask, jsonify, make_response, redirect, render_template, request
 
 from services.capture_service import capture_profile, capture_lookup_page, resolve_profile_reference, extract_item_seller_context
-from services.parser_mercari import REQUIRED_FIELDS, parse_profile, parse_review_entries
+from services.parser_mercari import REQUIRED_FIELDS, parse_profile, parse_review_entries, parse_review_summary_counts
 from services.proof_service import build_proof
 from services.analysis_service import build_timeline
 from services.storage_service import (
@@ -88,7 +88,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             if mercari_url_kind(normalized) == "profile":
                 profile_url_check = normalized
                 reusable = find_latest_reusable_proof_by_source_url(profile_url_check)
-                if reusable is not None:
+                if reusable is not None and _proof_has_review_breakdown(reusable):
                     reviews_url = build_mercari_reviews_url(profile_url_check)
                     if not _has_new_reviews(profile_url_check, reviews_url):
                         return jsonify({
@@ -172,6 +172,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "review_raw_html": payload.get("reviews_html"),
                 "review_visible_text": payload.get("reviews_text"),
                 "review_bad_visible_text": payload.get("reviews_bad_text"),
+                "review_buyer_visible_text": payload.get("reviews_buyer_text"),
+                "review_buyer_bad_visible_text": payload.get("reviews_buyer_bad_text"),
                 "review_http_status": 200 if payload.get("reviews_html") else None,
             }
             resolution = {
@@ -183,10 +185,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "seller_total_reviews": payload.get("seller_total_reviews"),
                 "display_name": payload.get("display_name"),
             }
+            _ensure_review_capture(profile_url, capture_data)
             review_entries = parse_review_entries(
                 capture_data.get("review_raw_html"),
                 capture_data.get("review_visible_text"),
                 capture_data.get("review_bad_visible_text"),
+                review_buyer_visible_text=capture_data.get("review_buyer_visible_text"),
+                review_buyer_bad_visible_text=capture_data.get("review_buyer_bad_visible_text"),
             )
             parsed_data = parse_profile(
                 raw_html, visible_text,
@@ -242,7 +247,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         try:
             reusable_proof = find_latest_reusable_proof_by_source_url(profile_url)
             reviews_url = build_mercari_reviews_url(profile_url)
-            if reusable_proof is not None:
+            if reusable_proof is not None and _proof_has_review_breakdown(reusable_proof):
                 if not _has_new_reviews(profile_url, reviews_url):
                     return jsonify({
                         "capture_id": reusable_proof["capture_id"],
@@ -275,6 +280,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "review_raw_html": payload.get("reviews_html"),
                 "review_visible_text": payload.get("reviews_text"),
                 "review_bad_visible_text": payload.get("reviews_bad_text"),
+                "review_buyer_visible_text": payload.get("reviews_buyer_text"),
+                "review_buyer_bad_visible_text": payload.get("reviews_buyer_bad_text"),
                 "review_http_status": 200 if payload.get("reviews_html") else None,
             }
 
@@ -288,10 +295,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "display_name": payload.get("display_name"),
             }
 
+            _ensure_review_capture(profile_url, capture_data)
             review_entries = parse_review_entries(
                 capture_data.get("review_raw_html"),
                 capture_data.get("review_visible_text"),
                 capture_data.get("review_bad_visible_text"),
+                review_buyer_visible_text=capture_data.get("review_buyer_visible_text"),
+                review_buyer_bad_visible_text=capture_data.get("review_buyer_bad_visible_text"),
             )
             parsed_data = parse_profile(
                 capture_data["raw_html"],
@@ -489,6 +499,39 @@ def _has_new_reviews(source_url: str, reviews_url: str) -> bool:
         return live_hash != stored_hash
     except Exception:
         return False
+
+
+def _ensure_review_capture(profile_url: str, capture_data: dict[str, Any]) -> None:
+    if _review_capture_looks_usable(capture_data):
+        return
+    reviews_url = build_mercari_reviews_url(profile_url)
+    capture = capture_lookup_page(reviews_url)
+    if not capture.get("visible_text"):
+        return
+    capture_data["review_url"] = reviews_url
+    capture_data["review_raw_html"] = capture.get("raw_html")
+    capture_data["review_visible_text"] = capture.get("visible_text")
+    capture_data["review_http_status"] = capture.get("http_status")
+
+
+def _review_capture_looks_usable(capture_data: dict[str, Any]) -> bool:
+    visible_text = str(capture_data.get("review_visible_text") or "")
+    if not visible_text.strip():
+        return False
+    good_count, bad_count = parse_review_summary_counts(visible_text)
+    return good_count > 0 or bad_count > 0 or "評価一覧" in visible_text
+
+
+def _proof_has_review_breakdown(reusable: dict[str, Any]) -> bool:
+    payload = reusable.get("proof_payload") or {}
+    metrics = payload.get("metrics") or {}
+    quality = payload.get("quality")
+    return (
+        metrics.get("positive_reviews") is not None
+        and metrics.get("negative_reviews") is not None
+        and isinstance(quality, dict)
+        and (quality.get("entry_count") or 0) > 0
+    )
 
 
 def _extract_query_url(payload: dict[str, Any]) -> str:

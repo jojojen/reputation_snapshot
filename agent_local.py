@@ -60,6 +60,78 @@ def _capture_page(page, url: str) -> dict:
     }
 
 
+def _read_body_text(page) -> str:
+    return page.evaluate("() => document.body ? document.body.innerText : ''")
+
+
+def _click_review_tab(page, tab: str) -> bool:
+    selector_map = {
+        "good": ('[aria-controls="good"]', '[data-testid*="good"]'),
+        "bad": ('[aria-controls="bad"]', '[data-testid*="bad"]'),
+        "seller": ('[aria-controls="seller"]', '[aria-controls*="seller"]', '[data-testid*="seller"]'),
+        "buyer": ('[aria-controls="buyer"]', '[aria-controls*="buyer"]', '[data-testid*="buyer"]'),
+    }
+    label_map = {
+        "good": ("良かった", "良い"),
+        "bad": ("残念だった", "悪い"),
+        "seller": ("出品者",),
+        "buyer": ("購入者",),
+    }
+    for selector in selector_map[tab]:
+        try:
+            element = page.query_selector(selector)
+            if element:
+                element.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+    for label in label_map[tab]:
+        try:
+            locator = page.get_by_role("tab", name=re.compile(label))
+            if locator.count():
+                locator.first.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+        try:
+            locator = page.get_by_text(label, exact=False)
+            if locator.count():
+                locator.first.click()
+                page.wait_for_timeout(1200)
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _capture_review_tab_texts(page, initial_capture: dict) -> dict:
+    tab_text = {
+        "reviews_html": initial_capture["raw_html"],
+        "reviews_text": initial_capture["visible_text"],
+        "reviews_bad_text": "",
+        "reviews_buyer_text": "",
+        "reviews_buyer_bad_text": "",
+    }
+
+    if _click_review_tab(page, "seller"):
+        _click_review_tab(page, "good")
+        tab_text["reviews_html"] = page.content()
+        tab_text["reviews_text"] = _read_body_text(page)
+
+    if _click_review_tab(page, "bad"):
+        tab_text["reviews_bad_text"] = _read_body_text(page)
+
+    if _click_review_tab(page, "buyer"):
+        _click_review_tab(page, "good")
+        tab_text["reviews_buyer_text"] = _read_body_text(page)
+        if _click_review_tab(page, "bad"):
+            tab_text["reviews_buyer_bad_text"] = _read_body_text(page)
+
+    return tab_text
+
+
 def _find_profile_url(html: str) -> str | None:
     for pat in [r'href="(/user/profile/([A-Za-z0-9_-]+))"',
                 r'["\x27](/user/profile/([A-Za-z0-9_-]+))["\x27]']:
@@ -128,20 +200,16 @@ def _run_capture(query_url: str) -> dict:
         profile_id   = profile_url.rstrip("/").split("/")[-1]
         reviews_url  = f"https://{MERCARI_HOST}/user/reviews/{profile_id}"
         reviews_html = reviews_text = reviews_bad_text = None
+        reviews_buyer_text = reviews_buyer_bad_text = None
         try:
             rpg = ctx.new_page()
             rd = _capture_page(rpg, reviews_url)
-            reviews_html, reviews_text = rd["raw_html"], rd["visible_text"]
-            try:
-                bad_btn = rpg.query_selector('[aria-controls="bad"]')
-                if bad_btn:
-                    bad_btn.click()
-                    rpg.wait_for_timeout(2000)
-                    reviews_bad_text = rpg.evaluate(
-                        "() => document.body ? document.body.innerText : ''"
-                    )
-            except Exception:
-                pass
+            tab_text = _capture_review_tab_texts(rpg, rd)
+            reviews_html = tab_text["reviews_html"]
+            reviews_text = tab_text["reviews_text"]
+            reviews_bad_text = tab_text["reviews_bad_text"]
+            reviews_buyer_text = tab_text["reviews_buyer_text"]
+            reviews_buyer_bad_text = tab_text["reviews_buyer_bad_text"]
             rpg.close()
         except Exception as e:
             print(f"  [warn] reviews capture skipped: {e}")
@@ -159,6 +227,8 @@ def _run_capture(query_url: str) -> dict:
         "reviews_html":     reviews_html,
         "reviews_text":     reviews_text,
         "reviews_bad_text": reviews_bad_text,
+        "reviews_buyer_text": reviews_buyer_text,
+        "reviews_buyer_bad_text": reviews_buyer_bad_text,
         "item_html":        item_html,
         "item_text":        item_text,
     }

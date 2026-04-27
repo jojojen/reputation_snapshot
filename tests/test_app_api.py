@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 import app as app_module
 
 from services.proof_service import build_proof
@@ -16,7 +18,7 @@ PROFILE_RAW_HTML = """
   <div data-testid="mer-profile-heading">
     <h1>山本商店</h1>
   </div>
-  <span data-testid="thumbnail-item-name">ゲッコウガsar</span>
+  <span data-testid="thumbnail-item-name">ポケモンカード sar</span>
 </section>
 """
 
@@ -30,10 +32,69 @@ PROFILE_VISIBLE_TEXT = "\n".join(
     ]
 )
 
-REVIEW_VISIBLE_TEXT = "\n".join(["良い (96)", "残念だった (4)"])
+REVIEW_VISIBLE_TEXT = "\n".join(
+    [
+        "評価一覧",
+        "良かった (96)",
+        "残念だった (4)",
+        "購入者",
+        "ありがとうございました",
+        "2026/04",
+        "出品者",
+        "良い商品でした",
+        "2026/04",
+    ]
+)
+
+ITEM_RAW_HTML = """
+<a href="/user/profile/492792377" data-location="item_details:seller_info"
+   aria-label="山本商店, 961件のレビュー, 5段階評価中4.5, 本人確認済">
+  山本商店 961
+</a>
+"""
+
+ITEM_VISIBLE_TEXT = "\n".join(["出品者", "山本商店", "961", "本人確認済"])
 
 ITEM_URL = "https://jp.mercari.com/item/m74005892833"
 PROFILE_URL = "https://jp.mercari.com/user/profile/492792377"
+
+
+def _submit_capture_job(client, query_url: str = ITEM_URL, include_reviews: bool = True) -> dict:
+    create_response = client.post("/api/captures", json={"query_url": query_url})
+    assert create_response.status_code == 200
+    create_payload = create_response.get_json()
+    assert create_payload["status"] == "pending"
+    job_id = create_payload["job_id"]
+
+    token = client.application.config["ADMIN_TOKEN"]
+    payload = {
+        "query_kind": "item" if query_url == ITEM_URL else "profile",
+        "profile_url": PROFILE_URL,
+        "profile_html": PROFILE_RAW_HTML,
+        "profile_text": PROFILE_VISIBLE_TEXT,
+        "screenshot_base64": base64.b64encode(b"fake-png").decode(),
+        "reviews_url": "https://jp.mercari.com/user/reviews/492792377",
+        "reviews_html": "" if include_reviews else None,
+        "reviews_text": REVIEW_VISIBLE_TEXT if include_reviews else None,
+        "reviews_bad_text": "",
+        "item_html": ITEM_RAW_HTML if query_url == ITEM_URL else None,
+        "item_text": ITEM_VISIBLE_TEXT if query_url == ITEM_URL else None,
+        "seller_total_reviews": 961,
+        "display_name": "山本商店",
+    }
+    result_response = client.post(
+        f"/api/jobs/{job_id}/result?token={token}",
+        json=payload,
+    )
+    assert result_response.status_code == 200
+    assert result_response.get_json()["status"] == "done"
+
+    job_response = client.get(f"/api/jobs/{job_id}")
+    assert job_response.status_code == 200
+    job_payload = job_response.get_json()
+    assert job_payload["status"] == "done"
+    job_payload["proof_id"] = job_payload["proof_url"].rsplit("/", 1)[-1]
+    return job_payload
 
 
 def test_index_route(client) -> None:
@@ -43,53 +104,8 @@ def test_index_route(client) -> None:
     assert b"Mercari Reputation Snapshot" in response.data
 
 
-def test_capture_route_creates_proof_and_verify_roundtrip(client, monkeypatch) -> None:
-    def fake_resolve_profile_reference(query_url: str) -> dict[str, str | int | None]:
-        assert query_url == ITEM_URL
-        return {
-            "query_url": ITEM_URL,
-            "query_kind": "item",
-            "profile_url": PROFILE_URL,
-            "item_url": ITEM_URL,
-            "item_raw_html": """
-            <a href="/user/profile/492792377" data-location="item_details:seller_info"
-               aria-label="山本商店, 961件のレビュー, 5段階評価中4.5, 本人確認済">
-              山本商店 961
-            </a>
-            """,
-            "item_visible_text": "出品者\n山本商店\n961\n本人確認済",
-            "display_name": "山本商店",
-            "seller_total_reviews": 961,
-        }
-
-    def fake_capture_profile(profile_url: str) -> dict[str, str | int]:
-        assert profile_url == PROFILE_URL
-        return {
-            "capture_id": "cap_api_001",
-            "raw_html": PROFILE_RAW_HTML,
-            "visible_text": PROFILE_VISIBLE_TEXT,
-            "review_raw_html": "",
-            "review_visible_text": REVIEW_VISIBLE_TEXT,
-            "raw_html_path": "tests/fixtures/profile_api.html",
-            "visible_text_path": "tests/fixtures/profile_api.txt",
-            "screenshot_path": "tests/fixtures/profile_api.png",
-            "raw_html_sha256": sha256_text(PROFILE_RAW_HTML),
-            "visible_text_sha256": sha256_text(PROFILE_VISIBLE_TEXT),
-            "screenshot_sha256": sha256_text("profile_api.png"),
-            "http_status": 200,
-            "captured_at": "2026-04-18T09:00:00+09:00",
-        }
-
-    monkeypatch.setattr(app_module, "resolve_profile_reference", fake_resolve_profile_reference)
-    monkeypatch.setattr(app_module, "capture_profile", fake_capture_profile)
-
-    capture_response = client.post("/api/captures", json={"query_url": ITEM_URL})
-
-    assert capture_response.status_code == 200
-    capture_payload = capture_response.get_json()
-    assert capture_payload["capture_id"] == "cap_api_001"
-    assert capture_payload["proof_url"].startswith("/p/")
-    assert capture_payload["reused"] is False
+def test_capture_job_result_creates_proof_and_verify_roundtrip(client) -> None:
+    capture_payload = _submit_capture_job(client)
 
     proof_response = client.get(f"/api/proofs/{capture_payload['proof_id']}")
     assert proof_response.status_code == 200
@@ -98,6 +114,9 @@ def test_capture_route_creates_proof_and_verify_roundtrip(client, monkeypatch) -
     assert proof_document["metrics"]["total_reviews"] == 961
     assert proof_document["metrics"]["positive_reviews"] == 96
     assert proof_document["metrics"]["negative_reviews"] == 4
+    assert proof_document["quality"]["entry_count"] == 2
+    assert proof_document["quality"]["as_seller"]["positive"] == 1
+    assert proof_document["quality"]["as_buyer"]["positive"] == 1
 
     proof_page_response = client.get(capture_payload["proof_url"])
     assert proof_page_response.status_code == 200
@@ -108,7 +127,22 @@ def test_capture_route_creates_proof_and_verify_roundtrip(client, monkeypatch) -
     assert verify_response.get_json()["valid"] is True
 
 
-def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch) -> None:
+def test_capture_job_result_fetches_reviews_when_agent_payload_omits_them(client, monkeypatch) -> None:
+    monkeypatch.setattr(
+        app_module,
+        "capture_lookup_page",
+        lambda url: {"raw_html": "<html>reviews</html>", "visible_text": REVIEW_VISIBLE_TEXT, "http_status": 200},
+    )
+
+    capture_payload = _submit_capture_job(client, include_reviews=False)
+    proof_document = client.get(f"/api/proofs/{capture_payload['proof_id']}").get_json()
+
+    assert proof_document["metrics"]["positive_reviews"] == 96
+    assert proof_document["metrics"]["negative_reviews"] == 4
+    assert proof_document["quality"]["entry_count"] == 2
+
+
+def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> None:
     capture_id = "cap_existing_001"
     parsed_data = {
         "display_name": "山本商店",
@@ -121,7 +155,7 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         "followers_count": 39,
         "following_count": 0,
         "bio_excerpt": "ポケモンカード中心の出品です。",
-        "sample_items": ["ゲッコウガsar"],
+        "sample_items": ["ポケモンカード sar"],
         "parser_version": "mercari_parser_v0",
         "extractor_strategy": "dom_text_regex+review_page+item_page",
         "llm_repair_applied": 0,
@@ -168,7 +202,6 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         }
     )
 
-    # Insert review entries so get_latest_review_entry_hash() finds them
     fake_review_entries = [
         {"role": "seller", "rating": "positive", "body_excerpt": "ありがとうございました", "entry_order": 1},
         {"role": "buyer", "rating": "positive", "body_excerpt": "良い商品でした", "entry_order": 2},
@@ -189,33 +222,13 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
         }
     )
 
-    def fake_resolve_profile_reference(query_url: str) -> dict[str, str | int | None]:
-        assert query_url == ITEM_URL
-        return {
-            "query_url": ITEM_URL,
-            "query_kind": "item",
-            "profile_url": PROFILE_URL,
-            "item_url": ITEM_URL,
-            "item_raw_html": None,
-            "item_visible_text": None,
-            "display_name": "山本商店",
-            "seller_total_reviews": 961,
-        }
+    monkeypatch.setattr(
+        app_module,
+        "capture_lookup_page",
+        lambda url: {"raw_html": "", "visible_text": "購入者\nありがとうございました\n2026/04"},
+    )
 
-    def fake_capture_profile(profile_url: str):
-        raise AssertionError(f"capture_profile should not run for an existing snapshot: {profile_url}")
-
-    # "購入者" → role="seller", body="ありがとうございました" → matches stored entry_order=1 hash → reuse
-    REUSE_REVIEW_TEXT = "購入者\nありがとうございました\n2026/04"
-
-    def fake_capture_lookup_page(url: str) -> dict:
-        return {"raw_html": "", "visible_text": REUSE_REVIEW_TEXT}
-
-    monkeypatch.setattr(app_module, "resolve_profile_reference", fake_resolve_profile_reference)
-    monkeypatch.setattr(app_module, "capture_profile", fake_capture_profile)
-    monkeypatch.setattr(app_module, "capture_lookup_page", fake_capture_lookup_page)
-
-    capture_response = client.post("/api/captures", json={"query_url": ITEM_URL})
+    capture_response = client.post("/api/captures", json={"query_url": PROFILE_URL})
 
     assert capture_response.status_code == 200
     capture_payload = capture_response.get_json()
@@ -224,41 +237,9 @@ def test_capture_route_reuses_existing_snapshot_for_item_url(client, monkeypatch
     assert capture_payload["reused"] is True
 
 
-def test_revoke_route_updates_proof_status(client, monkeypatch) -> None:
-    def fake_resolve_profile_reference(query_url: str) -> dict[str, str | int | None]:
-        return {
-            "query_url": PROFILE_URL,
-            "query_kind": "profile",
-            "profile_url": PROFILE_URL,
-            "item_url": None,
-            "item_raw_html": None,
-            "item_visible_text": None,
-            "display_name": None,
-            "seller_total_reviews": None,
-        }
-
-    def fake_capture_profile(profile_url: str) -> dict[str, str | int]:
-        return {
-            "capture_id": "cap_api_002",
-            "raw_html": PROFILE_RAW_HTML,
-            "visible_text": PROFILE_VISIBLE_TEXT,
-            "review_raw_html": "",
-            "review_visible_text": REVIEW_VISIBLE_TEXT,
-            "raw_html_path": "tests/fixtures/profile_api_2.html",
-            "visible_text_path": "tests/fixtures/profile_api_2.txt",
-            "screenshot_path": "tests/fixtures/profile_api_2.png",
-            "raw_html_sha256": sha256_text(PROFILE_RAW_HTML),
-            "visible_text_sha256": sha256_text(PROFILE_VISIBLE_TEXT),
-            "screenshot_sha256": sha256_text("profile_api_2.png"),
-            "http_status": 200,
-            "captured_at": "2026-04-18T09:00:00+09:00",
-        }
-
-    monkeypatch.setattr(app_module, "resolve_profile_reference", fake_resolve_profile_reference)
-    monkeypatch.setattr(app_module, "capture_profile", fake_capture_profile)
-
-    capture_response = client.post("/api/captures", json={"profile_url": PROFILE_URL})
-    proof_id = capture_response.get_json()["proof_id"]
+def test_revoke_route_updates_proof_status(client) -> None:
+    capture_payload = _submit_capture_job(client, PROFILE_URL)
+    proof_id = capture_payload["proof_id"]
 
     revoke_response = client.post(f"/api/proofs/{proof_id}/revoke", json={"reason": "policy_test"})
     assert revoke_response.status_code == 200

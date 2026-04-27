@@ -19,3 +19,32 @@ def test_extract_item_seller_context_reads_profile_url_and_review_count() -> Non
     assert context["profile_url"] == "https://jp.mercari.com/user/profile/492792377"
     assert context["display_name"] == "山本商店"
     assert context["seller_total_reviews"] == 961
+
+
+def test_extract_item_seller_context_prefers_visible_seller_over_badge_label() -> None:
+    raw_html = """
+    <section>
+      <a href="/user/profile/954805077" data-location="item_details:seller_info"
+         aria-label="Seller Level 10">
+        Seller Level 10
+      </a>
+    </section>
+    """
+    visible_text = "\n".join(
+        [
+            "メルカリ安心への取り組み",
+            "出品者",
+            "きずま",
+            "3962",
+            "本人確認済",
+            "Quick shipment",
+            "Seller Level 10",
+            "コメント (2)",
+        ]
+    )
+
+    context = extract_item_seller_context(raw_html, visible_text)
+
+    assert context["profile_url"] == "https://jp.mercari.com/user/profile/954805077"
+    assert context["display_name"] == "きずま"
+    assert context["seller_total_reviews"] == 3962

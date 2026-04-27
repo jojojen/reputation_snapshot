@@ -170,9 +170,10 @@ def find_latest_reusable_proof_by_source_url(source_url: str) -> dict[str, Any] 
         return None
     result = dict(row)
     try:
-        result.pop("proof_payload_json", None)
+        result["proof_payload"] = json.loads(result.pop("proof_payload_json", "{}"))
     except Exception:
-        pass
+        result.pop("proof_payload_json", None)
+        result["proof_payload"] = {}
     return result
 
 
