@@ -1,14 +1,24 @@
 @echo off
 if "%~1"=="go" goto :main
-cmd /k ""%~f0" go"
+cmd /k ""%~f0" go %*"
 exit /b
 
 :main
+shift
 cd /d "%~dp0"
 echo ============================================
 echo  Reputation Snapshot  ^|  Quick Start
 echo ============================================
 echo.
+
+set NO_BROWSER=0
+:parse_args
+if "%~1"=="" goto :args_done
+if /i "%~1"=="--no-browser" set NO_BROWSER=1
+if /i "%~1"=="/no-browser" set NO_BROWSER=1
+shift
+goto :parse_args
+:args_done
 
 :: ---------- Python ----------
 echo [CHECK] Python...
@@ -83,13 +93,19 @@ echo.
 echo [OK] All checks passed. Starting server...
 echo.
 start "Reputation Snapshot - Server" .venv\Scripts\python app.py
+if "%NO_BROWSER%"=="1" goto :browser_skipped
 timeout /t 2 /nobreak >nul
 start "" "http://127.0.0.1:5000"
 start "" "http://127.0.0.1:5000/admin?token=%ADMIN_TOKEN%"
+:browser_skipped
 echo [OK] Server started.
+if "%NO_BROWSER%"=="1" (
+echo [OK] Browser opening skipped.
+) else (
 echo [OK] Browser opening:
 echo      Main : http://127.0.0.1:5000
 echo      Admin: http://127.0.0.1:5000/admin?token=%ADMIN_TOKEN%
+)
 goto :done
 
 :err_python
