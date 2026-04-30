@@ -379,6 +379,9 @@ def _mercari_browser_context():
                     "--disable-dev-shm-usage",
                 ],
             }
+            chromium_executable = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+            if chromium_executable:
+                launch_kwargs["executable_path"] = chromium_executable
             if proxy_server:
                 launch_kwargs["proxy"] = {
                     "server": proxy_server,
