@@ -5,7 +5,7 @@ exit /b
 
 :main
 shift
-cd /d "%~dp0"
+cd /d "%~dp0.."
 echo ============================================
 echo  Reputation Snapshot  ^|  Quick Start
 echo ============================================
