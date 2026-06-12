@@ -140,9 +140,13 @@ def test_capture_job_result_fetches_reviews_when_agent_payload_omits_them(client
     assert proof_document["metrics"]["positive_reviews"] == 96
     assert proof_document["metrics"]["negative_reviews"] == 4
     assert proof_document["quality"]["entry_count"] == 2
+    assert proof_document["review_entries"][0]["role"] == "seller"
+    assert proof_document["review_entries"][0]["rating"] == "positive"
+    assert proof_document["review_entries"][1]["rating"] == "positive"
 
 
 def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> None:
+    monkeypatch.setattr(app_module, "_has_new_reviews", lambda source_url, reviews_url: False)
     capture_id = "cap_existing_001"
     parsed_data = {
         "display_name": "山本商店",
@@ -163,7 +167,7 @@ def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> 
     }
     capture_data = {
         "capture_id": capture_id,
-        "captured_at": "2026-04-18T09:00:00+09:00",
+        "captured_at": "2026-06-12T09:00:00+09:00",
         "raw_html_sha256": sha256_text(PROFILE_RAW_HTML),
         "visible_text_sha256": sha256_text(PROFILE_VISIBLE_TEXT),
         "screenshot_sha256": sha256_text("profile_existing.png"),
@@ -222,12 +226,6 @@ def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> 
         }
     )
 
-    monkeypatch.setattr(
-        app_module,
-        "capture_lookup_page",
-        lambda url: {"raw_html": "", "visible_text": "購入者\nありがとうございました\n2026/04"},
-    )
-
     capture_response = client.post("/api/captures", json={"query_url": PROFILE_URL})
 
     assert capture_response.status_code == 200
@@ -235,6 +233,8 @@ def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> 
     assert capture_payload["proof_id"] == proof_bundle["proof_id"]
     assert capture_payload["proof_url"] == f"/p/{proof_bundle['proof_id']}"
     assert capture_payload["reused"] is True
+    proof_document = client.get(f"/api/proofs/{proof_bundle['proof_id']}").get_json()
+    assert proof_document["review_entries"][0]["body_excerpt"] == "ありがとうございました"
 
 
 def test_revoke_route_updates_proof_status(client) -> None:

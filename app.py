@@ -585,6 +585,7 @@ def _normalize_verify_input(proof_input: Any, signature: Any) -> tuple[dict[str,
     resolved_signature = signature or proof.pop("signature", None)
     proof.pop("kid", None)
     proof.pop("proof_sha256", None)
+    proof.pop("review_entries", None)
     proof.pop("revoked_at", None)
     proof.pop("revocation_reason", None)
     if not resolved_signature:

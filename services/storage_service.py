@@ -260,6 +260,7 @@ def get_proof_document(proof_id: str) -> dict[str, Any] | None:
         return None
 
     payload = json.loads(row["proof_payload_json"])
+    payload["review_entries"] = get_review_entries_for_capture(row["capture_id"])
     payload["proof_sha256"] = row["proof_sha256"]
     payload["signature"] = row["signature"]
     payload["kid"] = row["kid"]
@@ -269,6 +270,21 @@ def get_proof_document(proof_id: str) -> dict[str, Any] | None:
     if row.get("revocation_reason"):
         payload["revocation_reason"] = row["revocation_reason"]
     return payload
+
+
+def get_review_entries_for_capture(capture_id: str, limit: int = 80) -> list[dict[str, Any]]:
+    with get_db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT role, rating, body_excerpt, entry_order, captured_at
+            FROM review_entries
+            WHERE capture_id = ?
+            ORDER BY entry_order ASC, id ASC
+            LIMIT ?
+            """,
+            (capture_id, max(1, int(limit))),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def revoke_proof(proof_id: str, reason: str) -> None:
