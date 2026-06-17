@@ -85,6 +85,40 @@ def test_parser_prefers_profile_total_reviews_over_breakdown_sum() -> None:
     assert parsed["extractor_strategy"] == "dom_text_regex+review_page"
 
 
+def test_parser_ignores_takahyouka_label_and_response_time_for_total_reviews() -> None:
+    """Regression: a profile whose text contains the 高評価 badge followed by a
+    '12時間以内返信' response-time line must not parse 12 as the review total.
+    The real total (152) sits on its own line right after the display name."""
+    raw_html = """
+    <section data-testid="profile-info">
+      <div data-testid="mer-avatar">
+        <img src="https://static.mercdn.net/thumb/members/webp/860309026.jpg" alt="アカ">
+      </div>
+      <div data-testid="mer-profile-heading">
+        <h1>アカ</h1>
+      </div>
+    </section>
+    """
+    visible_text = "\n".join(
+        [
+            "アカ",
+            "152",
+            "本人確認済",
+            "108 出品数",
+            "3 フォロワー",
+            "38 フォロー中",
+            "高評価",
+            "12時間以内返信",
+        ]
+    )
+
+    parsed = parse_profile(raw_html, visible_text)
+
+    assert parsed["display_name"] == "アカ"
+    assert parsed["total_reviews"] == 152
+    assert parsed["listing_count"] == 108
+
+
 def test_parser_uses_item_context_for_total_reviews() -> None:
     raw_html = """
     <section data-testid="profile-info">
