@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -351,8 +352,22 @@ def get_capture_job(job_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+_STALE_JOB_MINUTES = 8
+
+
 def claim_next_capture_job() -> dict[str, Any] | None:
+    stale_before = (
+        datetime.now(timezone.utc) - timedelta(minutes=_STALE_JOB_MINUTES)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
     with get_db_connection() as connection:
+        # Re-queue processing jobs whose agent died mid-capture.
+        connection.execute(
+            "UPDATE capture_jobs SET status = 'pending', claimed_at = NULL"
+            " WHERE status = 'processing' AND claimed_at IS NOT NULL"
+            " AND datetime(claimed_at) < datetime(?)",
+            (stale_before,),
+        )
+        connection.commit()
         row = connection.execute(
             "SELECT * FROM capture_jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1"
         ).fetchone()

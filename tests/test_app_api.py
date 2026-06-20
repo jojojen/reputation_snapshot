@@ -5,7 +5,14 @@ import base64
 import app as app_module
 
 from services.proof_service import build_proof
-from services.storage_service import insert_capture, insert_proof, insert_review_entries
+from services.storage_service import (
+    claim_next_capture_job,
+    create_capture_job,
+    get_capture_job,
+    insert_capture,
+    insert_proof,
+    insert_review_entries,
+)
 from utils.hash_utils import sha256_text
 from utils.json_utils import pretty_json
 
@@ -248,3 +255,51 @@ def test_revoke_route_updates_proof_status(client) -> None:
     proof_response = client.get(f"/api/proofs/{proof_id}")
     assert proof_response.status_code == 200
     assert proof_response.get_json()["status"] == "revoked"
+
+
+# ── Stale-job reclaim ────────────────────────────────────────────────────────
+
+
+def test_claim_reclaims_stale_processing_job() -> None:
+    from datetime import datetime, timedelta, timezone
+    from utils.db_utils import get_db_connection
+
+    # Insert a job that was claimed 10 minutes ago (older than the 8-min lease).
+    stale_claimed_at = (
+        datetime.now(timezone.utc) - timedelta(minutes=10)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    create_capture_job("job_stale", "https://jp.mercari.com/user/profile/stale_seller")
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE capture_jobs SET status = 'processing', claimed_at = ? WHERE id = ?",
+            (stale_claimed_at, "job_stale"),
+        )
+        conn.commit()
+
+    # Insert a newer pending job so we can confirm the stale one gets re-queued first.
+    create_capture_job("job_new", "https://jp.mercari.com/user/profile/new_seller")
+
+    # Claiming should reclaim the stale job (oldest created_at = stale) and return it.
+    claimed = claim_next_capture_job()
+    assert claimed is not None
+    assert claimed["id"] == "job_stale"
+    assert get_capture_job("job_stale")["status"] == "processing"
+    assert get_capture_job("job_new")["status"] == "pending"
+
+
+def test_claim_does_not_reclaim_fresh_processing_job() -> None:
+    from utils.db_utils import get_db_connection
+
+    create_capture_job("job_fresh", "https://jp.mercari.com/user/profile/fresh_seller")
+    # Mark as processing with a claimed_at of NOW (within the 8-min lease).
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE capture_jobs SET status = 'processing', claimed_at = datetime('now') WHERE id = ?",
+            ("job_fresh",),
+        )
+        conn.commit()
+
+    # Nothing pending → claim returns None; fresh job remains processing.
+    result = claim_next_capture_job()
+    assert result is None
+    assert get_capture_job("job_fresh")["status"] == "processing"
