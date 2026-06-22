@@ -153,7 +153,10 @@ def test_capture_job_result_fetches_reviews_when_agent_payload_omits_them(client
 
 
 def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> None:
-    monkeypatch.setattr(app_module, "_has_new_reviews", lambda source_url, reviews_url: False)
+    def fail_if_live_check_runs(source_url: str, reviews_url: str) -> bool:
+        raise AssertionError("quick profile reuse must not block on live Mercari review checks")
+
+    monkeypatch.setattr(app_module, "_has_new_reviews", fail_if_live_check_runs)
     capture_id = "cap_existing_001"
     parsed_data = {
         "display_name": "山本商店",

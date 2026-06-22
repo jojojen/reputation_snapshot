@@ -89,13 +89,11 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 profile_url_check = normalized
                 reusable = find_latest_reusable_proof_by_source_url(profile_url_check)
                 if reusable is not None and _proof_has_review_breakdown(reusable):
-                    reviews_url = build_mercari_reviews_url(profile_url_check)
-                    if not _has_new_reviews(profile_url_check, reviews_url):
-                        return jsonify({
-                            "proof_id": reusable["proof_id"],
-                            "proof_url": f"/p/{reusable['proof_id']}",
-                            "reused": True,
-                        })
+                    return jsonify({
+                        "proof_id": reusable["proof_id"],
+                        "proof_url": f"/p/{reusable['proof_id']}",
+                        "reused": True,
+                    })
         except Exception:
             pass
 
