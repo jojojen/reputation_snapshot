@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from services.parser_mercari import parse_profile
 from services.proof_service import build_proof
 from services.storage_service import insert_capture, insert_proof, revoke_proof
 from services.verify_service import verify_proof
+from utils.db_utils import JST
 from utils.hash_utils import sha256_text
 from utils.json_utils import pretty_json
 
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+RECENT_CAPTURED_AT = (datetime.now(JST) - timedelta(days=1)).replace(microsecond=0).isoformat()
 
 
 def _fixture_text(fixture_name: str, extension: str) -> str:
@@ -23,7 +26,7 @@ def _build_fixture_bundle(fixture_name: str = "fixture_high") -> tuple[str, str,
     parsed = parse_profile(raw_html, visible_text)
     capture_data = {
         "capture_id": "cap_fixture",
-        "captured_at": "2026-04-18T09:00:00+09:00",
+        "captured_at": RECENT_CAPTURED_AT,
         "raw_html_sha256": sha256_text(raw_html),
         "visible_text_sha256": sha256_text(visible_text),
         "screenshot_sha256": sha256_text("fixture_screenshot"),
