@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import uuid
 from typing import Any
 
@@ -42,6 +43,13 @@ from utils.profile_view_utils import build_proof_view, infer_primary_categories
 from utils.url_utils import MERCARI_URL_ERROR, build_mercari_reviews_url, is_valid_mercari_url, is_valid_mercari_profile_url, normalize_mercari_profile_url
 
 
+# HTTP transport envelope version (aka_no_claw#77 D2.4). Independent of
+# PROOF_VERSION, which versions the signed proof payload itself. The
+# envelope field is NOT part of the signed payload — _normalize_verify_input
+# strips it before signature verification.
+ENVELOPE_VERSION = 1
+
+
 def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     settings = get_settings()
     app = Flask(__name__)
@@ -57,6 +65,20 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
 
     ensure_runtime_directories()
     init_db()
+
+    @app.after_request
+    def _stamp_envelope_version(response: Any) -> Any:
+        """Stamp every JSON object response with the transport envelope
+        version so consumers can validate compatibility (#77 D2.4)."""
+        if response.mimetype == "application/json":
+            try:
+                payload = response.get_json()
+            except Exception:
+                return response
+            if isinstance(payload, dict) and "envelope_version" not in payload:
+                payload["envelope_version"] = ENVELOPE_VERSION
+                response.set_data(json.dumps(payload))
+        return response
 
     @app.get("/lang/<code>")
     def set_lang(code: str) -> Any:
@@ -583,6 +605,8 @@ def _normalize_verify_input(proof_input: Any, signature: Any) -> tuple[dict[str,
     resolved_signature = signature or proof.pop("signature", None)
     proof.pop("kid", None)
     proof.pop("proof_sha256", None)
+    # Transport envelope field, not part of the signed payload (#77 D2.4).
+    proof.pop("envelope_version", None)
     proof.pop("review_entries", None)
     proof.pop("revoked_at", None)
     proof.pop("revocation_reason", None)

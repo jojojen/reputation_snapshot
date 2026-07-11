@@ -306,3 +306,29 @@ def test_claim_does_not_reclaim_fresh_processing_job() -> None:
     result = claim_next_capture_job()
     assert result is None
     assert get_capture_job("job_fresh")["status"] == "processing"
+
+
+def test_json_responses_carry_envelope_version(client) -> None:
+    """Every JSON object response is stamped with the transport envelope
+    version (aka_no_claw#77 D2.4), independent of the signed proof payload."""
+    capture_payload = _submit_capture_job(client)
+    assert capture_payload["envelope_version"] == app_module.ENVELOPE_VERSION
+
+    proof_response = client.get(f"/api/proofs/{capture_payload['proof_id']}")
+    proof_document = proof_response.get_json()
+    assert proof_document["envelope_version"] == app_module.ENVELOPE_VERSION
+
+    # The envelope field is transport-only: a client that round-trips the
+    # fetched document into /api/verify must still get a valid signature.
+    verify_response = client.post("/api/verify", json={"proof": proof_document})
+    assert verify_response.status_code == 200
+    verify_payload = verify_response.get_json()
+    assert verify_payload["valid"] is True
+    assert verify_payload["envelope_version"] == app_module.ENVELOPE_VERSION
+
+
+def test_error_responses_carry_envelope_version(client) -> None:
+    response = client.post("/api/captures", json={"query_url": "https://example.com/nope"})
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["envelope_version"] == app_module.ENVELOPE_VERSION
