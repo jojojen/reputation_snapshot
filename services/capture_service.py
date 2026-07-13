@@ -3,8 +3,28 @@ from __future__ import annotations
 import os
 import re
 import uuid
+from contextlib import contextmanager
 from html import unescape
 from typing import Any
+
+# Optional navigation budget, installed only by the live-capture test harness
+# (or the scheduled live CI lane) via ``install_request_budget``. Production
+# runtime never sets it, so ``_capture_page`` stays unbounded there.
+_active_request_budget: Any = None
+
+
+@contextmanager
+def install_request_budget(budget: Any):
+    """Install a ``RequestBudget`` for the duration of a live batch so every
+    navigation issued by ``_capture_page`` is counted against a hard cap.
+    Restores the previous budget on exit."""
+    global _active_request_budget
+    previous = _active_request_budget
+    _active_request_budget = budget
+    try:
+        yield budget
+    finally:
+        _active_request_budget = previous
 
 # Persist browser cookies across requests so Mercari sees a returning user
 _BROWSER_STATE_PATH = os.path.join(
@@ -164,6 +184,8 @@ def extract_item_seller_context(raw_html: str, visible_text: str) -> dict[str, A
 
 
 def _capture_page(page: Any, url: str, take_screenshot: bool = False) -> dict[str, Any]:
+    if _active_request_budget is not None:
+        _active_request_budget.register("navigate", url)
     if _apply_stealth is not None:
         _apply_stealth(page)
     response = page.goto(url, wait_until="domcontentloaded", timeout=60000)

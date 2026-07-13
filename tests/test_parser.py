@@ -303,6 +303,74 @@ def test_parser_supports_label_first_metric_layout() -> None:
     assert parsed["following_count"] == 0
 
 
+def test_item_url_pipeline_full_quality_offline_mirror() -> None:
+    """Offline mirror of the live `test_live_item_url_generates_review_quality`
+    assertion set. It exercises the same parse_profile(+item context) →
+    parse_review_entries → build_proof(quality) chain the item-URL live test
+    drives, but from fixtures/inline data so the full quality contract is
+    verified deterministically without a browser."""
+    raw_html = _fixture_text("fixture_review_bridge_profile", "html")
+    visible_text = _fixture_text("fixture_review_bridge_profile", "txt")
+    review_visible_text = _fixture_text("fixture_review_bridge_reviews", "txt")
+    # A review page carrying both seller- and buyer-side comments, so the proof
+    # quality breakdown populates as_seller AND as_buyer.
+    review_visible_text = "\n".join(
+        [
+            review_visible_text,
+            "すみれ",
+            "出品者",
+            "この度はお取引と早々の評価をありがとうございました",
+            "2026/04",
+            "NAOTO",
+            "購入者",
+            "商品到着しました。ありがとうございました。",
+            "2026/04",
+        ]
+    )
+    # The item page supplies the seller's cumulative review total (961), the
+    # same signal resolve_profile_reference feeds parse_profile for item URLs.
+    item_raw_html = """
+    <a href="/user/profile/492792377" data-location="item_details:seller_info"
+       aria-label="山本商店, 961件のレビュー, 5段階評価中4.5, 本人確認済">
+      山本商店 961
+    </a>
+    """
+
+    review_entries = parse_review_entries(review_visible_text=review_visible_text)
+    parsed = parse_profile(
+        raw_html,
+        visible_text,
+        review_visible_text=review_visible_text,
+        item_raw_html=item_raw_html,
+        item_total_reviews=961,
+    )
+
+    proof_bundle = build_proof(
+        "https://jp.mercari.com/user/profile/492792377",
+        {
+            "captured_at": RECENT_CAPTURED_AT,
+            "raw_html_sha256": sha256_text(raw_html),
+            "visible_text_sha256": sha256_text(visible_text),
+            "screenshot_sha256": sha256_text("screen"),
+        },
+        parsed,
+        review_entries=review_entries,
+    )
+    proof = proof_bundle["proof_payload"]
+
+    assert parsed["display_name"] is not None
+    assert parsed["total_reviews"] is not None
+    assert parsed["positive_reviews"] is not None
+    assert parsed["negative_reviews"] is not None
+    assert review_entries
+    assert proof["quality"] is not None
+    assert proof["quality"]["entry_count"] > 0
+    assert proof["quality"]["as_seller"] or proof["quality"]["as_buyer"]
+
+    verify_result = verify_proof(proof, proof_bundle["signature"])
+    assert verify_result["valid"] is True
+
+
 def test_parser_rejects_company_page_noise_as_identity_or_items() -> None:
     raw_html = """
     <html>
