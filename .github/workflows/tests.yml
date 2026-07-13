@@ -14,8 +14,10 @@ jobs:
     name: Offline test suite
     runs-on: ubuntu-latest
     env:
-      # Live Playwright capture tests hit real marketplace pages; they are
-      # opt-out via this flag and must never run from CI runners.
+      # Live Playwright capture tests hit real marketplace pages. They are
+      # off by default (see tests/test_live_capture.py) and doubly excluded
+      # here by both the env flag and the pytest marker — CI must never hit
+      # Mercari.
       RUN_LIVE_CAPTURE_TESTS: "0"
     steps:
       - uses: actions/checkout@v4
@@ -33,4 +35,4 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Run offline test suite
-        run: python -m pytest -q -rs
+        run: python -m pytest -q -rs -m "not live_capture"

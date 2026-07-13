@@ -12,19 +12,23 @@ from services.proof_service import build_proof
 from services.verify_service import verify_proof
 
 
-RUN_LIVE_CAPTURE_TESTS = os.environ.get("RUN_LIVE_CAPTURE_TESTS", "1") != "0"
+# Off by default: a plain `pytest` run must stay offline/deterministic. Opt in
+# explicitly with `RUN_LIVE_CAPTURE_TESTS=1 pytest -m live_capture` (see README).
+RUN_LIVE_CAPTURE_TESTS = os.environ.get("RUN_LIVE_CAPTURE_TESTS", "0") == "1"
 DEFAULT_LIVE_URLS = [
     "https://jp.mercari.com/user/profile/492792377",
-    "https://jp.mercari.com/user/profile/839104844",
     "https://jp.mercari.com/user/profile/839104844",
 ]
 LIVE_URLS = [url.strip() for url in os.environ.get("MERCARI_LIVE_TEST_URLS", ",".join(DEFAULT_LIVE_URLS)).split(",") if url.strip()]
 LIVE_ITEM_URLS = json.loads((Path(__file__).resolve().parent / "live_item_urls.json").read_text(encoding="utf-8"))
 
-pytestmark = pytest.mark.skipif(
-    not RUN_LIVE_CAPTURE_TESTS,
-    reason="Set RUN_LIVE_CAPTURE_TESTS=0 to disable live Playwright capture tests.",
-)
+pytestmark = [
+    pytest.mark.live_capture,
+    pytest.mark.skipif(
+        not RUN_LIVE_CAPTURE_TESTS,
+        reason="Set RUN_LIVE_CAPTURE_TESTS=1 to enable live Playwright capture tests.",
+    ),
+]
 
 
 @pytest.mark.parametrize("profile_url", LIVE_URLS[:3])

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timedelta
 
 import app as app_module
 
@@ -13,8 +14,14 @@ from services.storage_service import (
     insert_proof,
     insert_review_entries,
 )
+from utils.db_utils import JST
 from utils.hash_utils import sha256_text
 from utils.json_utils import pretty_json
+
+# build_proof expires proofs older than 30 days; a hardcoded absolute date
+# here would age out and flip this test from "reuse valid proof" to "proof
+# expired" once real time passed the window (same class of bug as 8e7f998).
+RECENT_CAPTURED_AT = (datetime.now(JST) - timedelta(days=1)).replace(microsecond=0).isoformat()
 
 
 PROFILE_RAW_HTML = """
@@ -177,7 +184,7 @@ def test_capture_route_reuses_existing_profile_snapshot(client, monkeypatch) -> 
     }
     capture_data = {
         "capture_id": capture_id,
-        "captured_at": "2026-06-12T09:00:00+09:00",
+        "captured_at": RECENT_CAPTURED_AT,
         "raw_html_sha256": sha256_text(PROFILE_RAW_HTML),
         "visible_text_sha256": sha256_text(PROFILE_VISIBLE_TEXT),
         "screenshot_sha256": sha256_text("profile_existing.png"),
